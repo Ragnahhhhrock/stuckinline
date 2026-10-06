@@ -8,7 +8,10 @@ export class LineRoom {
   }
 
   fetch(request) {
-    if (request.headers.get('Upgrade') !== 'websocket') return new Response('Expected a WebSocket', { status: 426 });
+    // Browsers can reach us over HTTP/2 or HTTP/3, where the upgrade shows up as Sec-WebSocket-* headers rather than Upgrade.
+    const h = request.headers;
+    const isSocket = (h.get('Upgrade') || '').toLowerCase() === 'websocket' || h.has('Sec-WebSocket-Version') || h.has('Sec-WebSocket-Key');
+    if (!isSocket) return new Response(`Expected a WebSocket (saw: ${[...h.keys()].join(', ')})`, { status: 426 });
     const { 0: client, 1: server } = new WebSocketPair();
     server.accept();
     const c = this.game.connect(server);
