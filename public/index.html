@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b0d14">
+<title>The Line</title>
+<link rel="stylesheet" href="style.css">
+<script type="importmap">{"imports":{"three":"/vendor/three/three.module.js"}}</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<header id="hud">
+  <div id="pos">#&ndash;</div>
+  <div id="tally">joining the line&hellip;</div>
+</header>
+
+<div id="whisper" aria-live="polite"></div>
+
+<footer id="bar">
+  <div id="status">connecting&hellip;</div>
+  <button id="find" type="button">Find me</button>
+</footer>
+
+<section id="front" hidden>
+  <div id="glow"></div>
+  <div id="after" hidden>
+    <p id="finished"></p>
+    <label for="wtext">Leave one line for whoever is behind you.</label>
+    <input id="wtext" maxlength="60" autocomplete="off" placeholder="&hellip;">
+    <div class="row">
+      <button id="wsend" type="button">Leave it</button>
+      <button id="rejoin" type="button" class="quiet">Join the back of the line</button>
+    </div>
+  </div>
+</section>
+
+<div id="elsewhere" hidden>Your place is open in another tab.</div>
+
+<script type="module" src="main.js"></script>
+</body>
+</html>

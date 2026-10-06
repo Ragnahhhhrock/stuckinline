@@ -1,0 +1,15 @@
+{
+  "name": "the-line",
+  "version": "0.1.0",
+  "description": "A browser game about waiting in a line. MVP: shared queue, NPCs, Three.js portrait client.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/sim.js"
+  },
+  "dependencies": {
+    "three": "^0.186.1",
+    "ws": "^8.22.0"
+  },
+  "private": true
+}
