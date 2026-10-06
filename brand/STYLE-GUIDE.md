@@ -19,10 +19,6 @@ Dry, deadpan, patient. Like a stranger next to you in a queue who knows slightly
 5. **Warm, not cute.** Gentle absurdity, no emoji in product copy (one exception, see the paid skip), no memes, no slang that dates.
 6. Second person, present tense: "You are #412." "Close the tab and you lose your place."
 
-## The black cube (amended 6 October 2026)
-
-The in-game curtains open onto a black cube, glimpsed only. It is never named, described, captioned, explained or confirmed in any copy, and it is not an answer to "what's at the front". It stays mysterious: no label, no joke, no hint, in the game or anywhere else.
-
 ## Core lines (use verbatim)
 
 | Role | Copy |
