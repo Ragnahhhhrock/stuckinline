@@ -51,8 +51,27 @@ Dry, deadpan, patient. Like a stranger next to you in a queue who knows slightly
 
 - Caption for the 4:5 teaser: `What's your place in the line? stuckinline.com`. Nothing more. Hashtags, if any, at most two, after a blank line: `#stuckinline #queue`.
 - Replies and community: calm, brief, never argue, never reveal the front.
-- Never promise rewards, rankings, money, or what happens at the front.
+- Never promise rewards, prizes, rankings, or what happens at the front. The one exception for money is the paid skip, below.
+
+## The paid skip (amended 6 October 2026)
+
+The owner has approved one paid product: a one-off A$5 coffee that moves you to the front of the line. Payments for this product are signed off by the owner. It is the only place the brand may mention money or moving up the line.
+
+| Role | Copy |
+| --- | --- |
+| Product name and button label (verbatim) | Buy me a coffee and go straight to the front of the line |
+| Price line | A$5, one-off. |
+| Stripe description | Buy me a coffee. You go straight to the front of the line. One-off payment, A$5. |
+
+Rules for the paid skip:
+
+1. State the price plainly, once: "A$5, one-off." No "only", "just", "deal", "limited", "now" or countdowns.
+2. It moves your place. It never reveals, hints at or confirms what is at the front, and it never promises a prize or an outcome.
+3. Never imply the free line is a punishment or that waiting is broken. Waiting stays the game; the coffee is a thank-you with a shortcut.
+4. The coffee is for the person who made the game. Keep it dry and warm, never guilt, never pressure, never exclamation marks.
+5. One paid action on a screen, and it is quiet: a pill button in the same style as the others. Gold is for you and the single action to take, as always.
+6. Everything else in this guide still applies: sentence case, Australian English, no emoji.
 
 ## Things we never say or show
 
-Prizes, winners, "what's behind the curtain", countdown hype, real brands or people in the line, real-world queues (airports, shops, events), anything implying a wait costs money before payments have legal sign-off.
+Prizes, winners, "what's behind the curtain", countdown hype, real brands or people in the line, real-world queues (airports, shops, events), money or payment copy of any kind other than the paid skip above.
