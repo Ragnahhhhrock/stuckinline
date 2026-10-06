@@ -182,6 +182,14 @@ const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png',
 };
+// Cloudflare rewrites Cache-Control on .js/.css to hours, so a new deploy can sit behind stale copies.
+// Each file URL therefore carries the build id (the git commit on Railway, else the start time): a new deploy means new URLs.
+const BUILD = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.SOURCE_COMMIT || Date.now()).slice(0, 12);
+function versioned(rel, text) {
+  if (rel === 'index.html') return text.replace(/(src|href)="(main\.js|style\.css)"/g, `$1="$2?v=${BUILD}"`);
+  if (rel === 'main.js') return text.replace(/from '(\.\/[\w-]+\.js)'/g, `from '$1?v=${BUILD}'`);
+  return text;
+}
 const server = http.createServer((req, res) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }
   let pathname;
@@ -195,6 +203,7 @@ const server = http.createServer((req, res) => {
   if (!file.startsWith(base + path.sep) || !MIME[ext]) { res.writeHead(404); return res.end(); }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); return res.end(); }
+    if (base === PUBLIC && (rel === 'index.html' || rel === 'main.js')) data = Buffer.from(versioned(rel, data.toString('utf8')));
     res.writeHead(200, { 'Content-Type': MIME[ext], 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-cache' });
     res.end(req.method === 'HEAD' ? undefined : data);
   });
