@@ -31,13 +31,90 @@ const ground = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), new THREE.MeshL
 ground.rotation.x = -Math.PI / 2;
 scene.add(ground);
 
-// avatars: one instanced body + head, low poly
-const bodyGeo = new THREE.CylinderGeometry(0.27, 0.34, 0.9, 8).translate(0, 0.45, 0);
-const headGeo = new THREE.SphereGeometry(0.22, 8, 6).translate(0, 1.12, 0);
-const bodies = new THREE.InstancedMesh(bodyGeo, new THREE.MeshLambertMaterial({ color: 0xffffff }), MAX_INST);
-const heads = new THREE.InstancedMesh(headGeo, new THREE.MeshLambertMaterial({ color: 0xffffff }), MAX_INST);
-bodies.frustumCulled = heads.frustumCulled = false;
-scene.add(bodies, heads);
+// ---------- people: torso, arms, legs, head, face and hair, drawn from shared instanced parts ----------
+// Every figure is the same set of parts; each person varies by skin tone, hair style and colour, glasses, facial hair,
+// clothes, build, face proportions and nose. Faces point towards the stage (-z).
+function bp(geo, o = {}) { // a placed part: scale, then rotate, then translate (colour is baked in as a vertex colour when given)
+  const g = geo.index ? geo.toNonIndexed() : geo.clone();
+  if (o.s) g.scale(o.s[0], o.s[1], o.s[2]);
+  if (o.r) { g.rotateX(o.r[0]); g.rotateY(o.r[1]); g.rotateZ(o.r[2]); }
+  if (o.p) g.translate(o.p[0], o.p[1], o.p[2]);
+  g.userData.c = o.c ?? null;
+  return g;
+}
+function mergeParts(list, withColor) {
+  let n = 0;
+  for (const g of list) n += g.attributes.position.count;
+  const P = new Float32Array(n * 3), N = new Float32Array(n * 3), C = withColor ? new Float32Array(n * 3) : null;
+  const col = new THREE.Color();
+  let o = 0;
+  for (const g of list) {
+    const c = g.attributes.position.count;
+    P.set(g.attributes.position.array, o * 3); N.set(g.attributes.normal.array, o * 3);
+    if (C) { col.set(g.userData.c ?? 0xffffff); for (let i = 0; i < c; i++) { C[(o + i) * 3] = col.r; C[(o + i) * 3 + 1] = col.g; C[(o + i) * 3 + 2] = col.b; } }
+    o += c;
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(P, 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(N, 3));
+  if (C) out.setAttribute('color', new THREE.BufferAttribute(C, 3));
+  return out;
+}
+const Box = (w, h, d) => new THREE.BoxGeometry(w, h, d), Sph = (r, ws = 10, hs = 8) => new THREE.SphereGeometry(r, ws, hs);
+const HY = 1.40; // head centre height
+
+const shirtGeo = mergeParts([
+  bp(Box(0.46, 0.56, 0.25), { p: [0, 0.90, 0] }),
+  bp(Box(0.12, 0.50, 0.13), { p: [-0.30, 0.89, 0] }), bp(Box(0.12, 0.50, 0.13), { p: [0.30, 0.89, 0] }), // arms
+]);
+const skinGeo = mergeParts([
+  bp(Sph(0.2, 14, 10), { s: [1, 1.08, 1], p: [0, HY, 0] }), // head
+  bp(new THREE.CylinderGeometry(0.065, 0.07, 0.1, 8), { p: [0, 1.2, 0] }), // neck
+  bp(Sph(0.045, 8, 6), { s: [0.5, 1, 0.8], p: [-0.2, 1.39, 0.01] }), bp(Sph(0.045, 8, 6), { s: [0.5, 1, 0.8], p: [0.2, 1.39, 0.01] }), // ears
+  bp(Sph(0.062, 8, 6), { p: [-0.30, 0.60, 0] }), bp(Sph(0.062, 8, 6), { p: [0.30, 0.60, 0] }), // hands
+]);
+const legGeo = (x) => mergeParts([
+  bp(Box(0.17, 0.62, 0.18), { p: [x, 0.31, 0], c: 0xffffff }), // trousers (tinted per person)
+  bp(Box(0.18, 0.08, 0.26), { p: [x, 0.04, -0.04], c: 0x16161c }), // shoes
+], true);
+const faceGeo = mergeParts([
+  bp(Sph(0.036, 8, 6), { s: [1, 1.1, 0.55], p: [-0.078, 1.425, -0.178], c: 0xf4f1ea }), bp(Sph(0.036, 8, 6), { s: [1, 1.1, 0.55], p: [0.078, 1.425, -0.178], c: 0xf4f1ea }), // eyes
+  bp(Sph(0.02, 6, 5), { s: [1, 1, 0.5], p: [-0.078, 1.425, -0.196], c: 0x16110e }), bp(Sph(0.02, 6, 5), { s: [1, 1, 0.5], p: [0.078, 1.425, -0.196], c: 0x16110e }), // pupils
+  bp(Box(0.07, 0.014, 0.014), { r: [0, 0, 0.12], p: [-0.078, 1.478, -0.185], c: 0x2a1d12 }), bp(Box(0.07, 0.014, 0.014), { r: [0, 0, -0.12], p: [0.078, 1.478, -0.185], c: 0x2a1d12 }), // brows
+  bp(Box(0.075, 0.014, 0.012), { p: [0, 1.32, -0.19], c: 0x7a2a2a }), // mouth
+], true);
+const noseGeo = bp(Sph(0.032, 8, 6), { s: [0.8, 1.1, 1.3] });
+const glassesGeo = mergeParts([
+  bp(new THREE.TorusGeometry(0.046, 0.008, 6, 14), { p: [-0.078, 1.427, -0.205], c: 0x1a1a22 }), bp(new THREE.TorusGeometry(0.046, 0.008, 6, 14), { p: [0.078, 1.427, -0.205], c: 0x1a1a22 }),
+  bp(Box(0.04, 0.008, 0.008), { p: [0, 1.435, -0.205], c: 0x1a1a22 }),
+  bp(Box(0.008, 0.008, 0.2), { p: [-0.14, 1.43, -0.1], c: 0x1a1a22 }), bp(Box(0.008, 0.008, 0.2), { p: [0.14, 1.43, -0.1], c: 0x1a1a22 }),
+], true);
+const beardGeo = bp(new THREE.SphereGeometry(0.208, 14, 8, 0, Math.PI * 2, Math.PI * 0.68, Math.PI * 0.26), { s: [1, 1.08, 1.02], p: [0, HY, 0] });
+const stacheGeo = bp(Box(0.09, 0.02, 0.02));
+// hair: a cap sets the hairline; extra parts make each style's silhouette
+const cap = (th) => bp(new THREE.SphereGeometry(0.212, 14, 8, 0, Math.PI * 2, 0, Math.PI * th), { s: [1, 1.1, 1.02], p: [0, HY, 0.012] });
+const rear = (t0, t1) => bp(new THREE.SphereGeometry(0.214, 14, 8, 0, Math.PI, Math.PI * t0, Math.PI * (t1 - t0)), { s: [1, 1.1, 1.02], p: [0, HY, 0.012] });
+const spikes = [bp(new THREE.ConeGeometry(0.05, 0.17, 5), { p: [0, 1.70, 0] })];
+for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; spikes.push(bp(new THREE.ConeGeometry(0.045, 0.15, 5), { r: [Math.cos(a) * 0.55, 0, -Math.sin(a) * 0.55], p: [Math.sin(a) * 0.1, 1.66, Math.cos(a) * 0.1 + 0.01] })); }
+const hairGeos = [
+  mergeParts([cap(0.38), rear(0.36, 0.60)]), // 0 short
+  mergeParts([cap(0.38), rear(0.36, 0.70), bp(Box(0.40, 0.46, 0.09), { p: [0, 1.22, 0.15] })]), // 1 long
+  mergeParts([cap(0.38), rear(0.36, 0.60), bp(Sph(0.09, 10, 8), { p: [0, 1.66, 0.07] })]), // 2 bun
+  mergeParts([cap(0.34), ...spikes]), // 3 spiky
+  mergeParts([bp(Sph(0.27, 14, 10), { s: [1, 0.95, 1], p: [0, 1.50, 0.10] })]), // 4 afro
+]; // style 5 is bald
+
+const mk = (geo, vc, dbl) => {
+  const m = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ vertexColors: !!vc, side: dbl ? THREE.DoubleSide : THREE.FrontSide }), MAX_INST);
+  m.frustumCulled = false; scene.add(m); return m;
+};
+const shirtM = mk(shirtGeo), skinM = mk(skinGeo), legLM = mk(legGeo(-0.105), true), legRM = mk(legGeo(0.105), true);
+const faceM = mk(faceGeo, true), noseM = mk(noseGeo), glassM = mk(glassesGeo, true), beardM = mk(beardGeo, false, true), stacheM = mk(stacheGeo);
+const hairMs = hairGeos.map((g) => mk(g, false, true));
+const allMeshes = [shirtM, skinM, legLM, legRM, faceM, noseM, glassM, beardM, stacheM, ...hairMs];
+const hiN = [0, 0, 0, 0, 0];
+const M = new THREE.Matrix4(), T = new THREE.Matrix4(), T2 = new THREE.Matrix4(), S = new THREE.Matrix4(), Q = new THREE.Matrix4(), F = new THREE.Matrix4();
+const YOU_COLOR = new THREE.Color(0xffcf5c);
 
 // marker for you
 const marker = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.34, 8).rotateX(Math.PI), new THREE.MeshBasicMaterial({ color: 0xffcf5c }));
@@ -95,7 +172,26 @@ const curveX = (pos) => Math.sin(pos * 0.05) * 1.1 + Math.sin(pos * 0.017) * 1.6
 const hash01 = (n) => { const x = Math.sin(n * 12.9898) * 43758.5453; return x - Math.floor(x); };
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
-const entities = new Map(); // id -> {x,z,tx,tz,seed,walk?}
+const SKIN = ['#f3d2b3', '#e8bb94', '#d19a6e', '#b57a52', '#8a5636', '#5b3a26'].map((c) => new THREE.Color(c));
+const HAIR = ['#16110d', '#16110d', '#2e1d12', '#2e1d12', '#4a2f1a', '#4a2f1a', '#6e3a1c', '#b9904e', '#a9481f', '#8f8f8f', '#d9d5cd'].map((c) => new THREE.Color(c));
+const PANTS = ['#26324a', '#2b2b33', '#6b5b43', '#3e5a7a', '#4a5240', '#5a3d2e', '#1f1f24', '#7a7466'].map((c) => new THREE.Color(c));
+function makeTraits(seed) { // everything about a person's look comes from their seed
+  const r = (k) => hash01(seed + k * 7.31);
+  const hairStyle = Math.floor(r(1) * 6); // short, long, bun, spiky, afro, bald
+  const dyed = r(2) < 0.06;
+  const hair = dyed ? new THREE.Color(['#2f5fc4', '#c43d86', '#2f9e6a'][Math.floor(r(3) * 3)]) : HAIR[Math.floor(r(4) * HAIR.length)];
+  const skin = SKIN[Math.floor(r(5) * SKIN.length)];
+  const f = r(6);
+  return {
+    hairStyle, hair, skin, noseC: skin.clone().multiplyScalar(0.93),
+    shirt: new THREE.Color().setHSL(r(8), 0.3 + r(9) * 0.3, 0.38 + r(10) * 0.2), pants: PANTS[Math.floor(r(11) * PANTS.length)],
+    glasses: r(12) < 0.22, facial: hairStyle === 1 || hairStyle === 2 ? 0 : f < 0.14 ? 1 : f < 0.28 ? 2 : 0, // beard / moustache
+    fcol: hairStyle === 5 ? new THREE.Color('#3a2616') : hair,
+    w: 0.94 + 0.14 * r(13), h: 0.92 + 0.16 * r(14), fx: 0.9 + 0.22 * r(15), fy: 0.96 + 0.1 * r(16), ns: 0.8 + 0.6 * r(17),
+  };
+}
+
+const entities = new Map(); // id -> {x,z,tx,tz,seed,pos,tr,walk?}
 let state = { pos: null, total: 0, start: 1, items: [], you: null };
 let curtainTarget = 0, curtainAmt = 0;
 
@@ -103,7 +199,8 @@ function addEntity(id, seed, pos) {
   const tx = curveX(pos) + (hash01(seed) - 0.5) * 0.7;
   const tz = pos * SP; // the front of the line (pos 0) is at z=0, the stage; the back of the line is nearest the camera
   let e = entities.get(id);
-  if (!e) { e = { x: tx, z: tz, tx, tz, seed }; entities.set(id, e); }
+  if (!e) { e = { x: tx, z: tz, tx, tz, seed, pos, tr: makeTraits(seed) }; entities.set(id, e); }
+  e.pos = pos;
   if (!e.walk) { e.tx = tx; e.tz = tz; }
 }
 
@@ -195,7 +292,13 @@ setTimeout(hideHint, 10000);
 
 // ---------- render loop ----------
 const dummy = new THREE.Object3D();
-const color = new THREE.Color();
+// place-in-line labels: DOM elements pinned above each head (projected from 3D, so they follow orbit and zoom)
+const labelsEl = $('labels'), labelEls = [], lbE = [], lbY = [];
+const v3 = new THREE.Vector3(), fwd = new THREE.Vector3();
+function labelEl(i) {
+  if (!labelEls[i]) { const d = document.createElement('div'); d.className = 'lbl'; labelsEl.appendChild(d); labelEls[i] = d; }
+  return labelEls[i];
+}
 let lastT = 0, elapsed = 0;
 if (location.hash === '#debug') window.__line = { get open() { return curtainAmt; }, get yaw() { return yaw; }, get atFront() { return atFront; }, get walkers() { return [...entities.values()].filter((e) => e.walk).length; } };
 
@@ -222,33 +325,56 @@ function frame(now) {
   glow.material.opacity = 0.3 * ease;
   spill.intensity = 3 * ease;
 
-  // people ease towards their target spots, so the line visibly shuffles forward
-  let n = 0;
+  // people ease towards their target spots, so the line visibly shuffles forward; legs swing while they move
+  let n = 0, gi = 0, bi = 0, si = 0;
+  hiN.fill(0);
   let you = null;
   for (const [id, e] of entities) {
     if (n >= MAX_INST) break;
-    let y = Math.sin(t * 1.6 + e.seed) * 0.02;
+    const tr = e.tr, px = e.x, pz = e.z;
+    let y = Math.sin(t * 1.6 + e.seed) * 0.015, speed = 0;
     if (e.walk) { // the one at the head: waits a beat, then walks up onto the stage and into the dark
       e.walk.t += dt;
-      if (e.walk.t > 0.4) { e.z -= 0.95 * dt; e.x += (0 - e.x) * (1 - Math.exp(-dt * 3)); y = Math.abs(Math.sin(t * 5)) * 0.04; }
+      if (e.walk.t > 0.4) { e.z -= 0.95 * dt; e.x += (0 - e.x) * (1 - Math.exp(-dt * 3)); speed = 0.95; }
       y += clamp((0.6 - e.z) / 0.6, 0, 1) * FLOOR;
       if (e.z < -1.35 || e.walk.t > 8) { entities.delete(id); continue; }
-    } else { e.x += (e.tx - e.x) * k; e.z += (e.tz - e.z) * k; }
+    } else {
+      e.x += (e.tx - e.x) * k; e.z += (e.tz - e.z) * k;
+      speed = dt > 0 ? Math.hypot(e.x - px, e.z - pz) / dt : 0;
+    }
+    e.amp = (e.amp || 0) + (clamp(speed * 0.9, 0, 0.65) - (e.amp || 0)) * Math.min(1, dt * 8);
+    e.ph = (e.ph || 0) + speed * dt * 5;
+    const sw = Math.sin(e.ph) * e.amp;
+    if (speed > 0.4) y += Math.abs(Math.sin(e.ph)) * 0.03;
     dummy.position.set(e.x, y, e.z);
-    dummy.rotation.y = e.walk ? 0 : Math.sin(e.seed) * 0.3;
-    dummy.updateMatrix();
-    bodies.setMatrixAt(n, dummy.matrix); heads.setMatrixAt(n, dummy.matrix);
-    if (id === state.you) { you = e; color.setHex(0xffcf5c); bodies.setColorAt(n, color); }
-    else { color.setHSL(hash01(e.seed + 1), 0.35 + hash01(e.seed + 2) * 0.25, 0.42 + hash01(e.seed + 3) * 0.18); bodies.setColorAt(n, color); }
-    color.setHSL(0.07 + hash01(e.seed + 4) * 0.05, 0.4, 0.55 + hash01(e.seed + 5) * 0.25);
-    heads.setColorAt(n, color);
+    dummy.rotation.set(0, e.walk ? 0 : Math.sin(e.seed) * 0.3, 0);
+    dummy.scale.set(tr.w, tr.h, tr.w);
+    dummy.updateMatrix(); M.copy(dummy.matrix);
+    const isYou = id === state.you;
+    shirtM.setMatrixAt(n, M); shirtM.setColorAt(n, isYou ? YOU_COLOR : tr.shirt);
+    skinM.setMatrixAt(n, M); skinM.setColorAt(n, tr.skin);
+    T.makeTranslation(0, 0.62, 0); T2.makeTranslation(0, -0.62, 0); // legs swing from the hip
+    Q.makeRotationX(sw); F.multiplyMatrices(M, T).multiply(Q).multiply(T2); legLM.setMatrixAt(n, F); legLM.setColorAt(n, tr.pants);
+    Q.makeRotationX(-sw); F.multiplyMatrices(M, T).multiply(Q).multiply(T2); legRM.setMatrixAt(n, F); legRM.setColorAt(n, tr.pants);
+    T.makeTranslation(0, HY, 0); T2.makeTranslation(0, -HY, 0); S.makeScale(tr.fx, tr.fy, 1); // face proportions: scaled about the head
+    F.multiplyMatrices(M, T).multiply(S).multiply(T2);
+    faceM.setMatrixAt(n, F);
+    if (tr.glasses) glassM.setMatrixAt(gi++, F);
+    T.makeTranslation(0, 1.375, -0.19); S.makeScale(tr.ns, tr.ns, tr.ns * 1.1);
+    F.multiplyMatrices(M, T).multiply(S); noseM.setMatrixAt(n, F); noseM.setColorAt(n, tr.noseC);
+    if (tr.facial === 1) { beardM.setMatrixAt(bi, M); beardM.setColorAt(bi, tr.fcol); bi++; }
+    else if (tr.facial === 2) { T.makeTranslation(0, 1.345, -0.2); S.makeScale(tr.fx, 1, 1); F.multiplyMatrices(M, T).multiply(S); stacheM.setMatrixAt(si, F); stacheM.setColorAt(si, tr.fcol); si++; }
+    if (tr.hairStyle < 5) { const hm = hairMs[tr.hairStyle], hi = hiN[tr.hairStyle]++; hm.setMatrixAt(hi, M); hm.setColorAt(hi, tr.hair); }
+    if (isYou) you = e;
+    lbE[n] = e; lbY[n] = y;
     n++;
   }
-  bodies.count = heads.count = n;
-  bodies.instanceMatrix.needsUpdate = heads.instanceMatrix.needsUpdate = true;
-  if (bodies.instanceColor) bodies.instanceColor.needsUpdate = heads.instanceColor.needsUpdate = true;
+  shirtM.count = skinM.count = legLM.count = legRM.count = faceM.count = noseM.count = n;
+  glassM.count = gi; beardM.count = bi; stacheM.count = si;
+  hairMs.forEach((hm, i) => { hm.count = hiN[i]; });
+  for (const m of allMeshes) { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
   marker.visible = ring.visible = !!you;
-  if (you) { marker.position.set(you.x, you.z < 0.6 ? 1.75 + FLOOR : 1.75 + Math.sin(t * 3) * 0.06, you.z); ring.position.set(you.x, 0.02, you.z); }
+  if (you) { marker.position.set(you.x, (you.z < 0.6 ? FLOOR : 0) + 2.05 * you.tr.h + Math.sin(t * 3) * 0.05, you.z); ring.position.set(you.x, 0.02, you.z); }
 
   // camera orbits the focus point (you, or whoever you slid to); "Front" flies it to the stage from anywhere in the line
   if (!atFront) { const [lo, hi] = panBounds(); panOffset = clamp(panOffset, lo, hi); }
@@ -261,6 +387,33 @@ function frame(now) {
   const ahead = atFront ? 0 : 14 * cp; // look past the focus so it sits in the lower third (at the front: look straight at it)
   camera.lookAt(fx - Math.sin(yaw) * ahead, atFront ? 1.8 : 0.6, fz - Math.cos(yaw) * ahead);
   ground.position.set(camera.position.x, 0, camera.position.z);
+
+  // labels: nearer ones are larger and stand on top; far ones fade out so the distant line stays readable
+  camera.updateMatrixWorld();
+  camera.getWorldDirection(fwd);
+  const W = canvas.clientWidth, Hh = canvas.clientHeight;
+  let li = 0;
+  for (let i = 0; i < n; i++) {
+    const e = lbE[i];
+    if (e.walk || !e.pos) continue;
+    const isYou = e === you;
+    v3.set(e.x, lbY[i] + (isYou ? 2.5 : 1.95) * e.tr.h, e.z);
+    const dist = camera.position.distanceTo(v3);
+    const op = isYou ? 1 : clamp(1.15 - (dist - 12) / 20, 0, 1);
+    if (op < 0.05 || (v3.x - camera.position.x) * fwd.x + (v3.y - camera.position.y) * fwd.y + (v3.z - camera.position.z) * fwd.z < 0.3) continue;
+    v3.project(camera);
+    if (v3.x < -1.1 || v3.x > 1.1 || v3.y < -1.1 || v3.y > 1.1) continue;
+    const el = labelEl(li++);
+    const txt = e.pos.toLocaleString();
+    if (el._t !== txt) { el.textContent = txt; el._t = txt; }
+    if (el._y !== isYou) { el.classList.toggle('you', isYou); el._y = isYou; }
+    el.style.display = 'block';
+    el.style.opacity = op.toFixed(2);
+    el.style.zIndex = String(2000 - Math.round(dist * 10));
+    const sc = isYou ? 1.15 : clamp(17 / dist, 0.62, 1.05);
+    el.style.transform = `translate(${((v3.x * 0.5 + 0.5) * W).toFixed(1)}px, ${((-v3.y * 0.5 + 0.5) * Hh).toFixed(1)}px) translate(-50%, -100%) scale(${sc.toFixed(2)})`;
+  }
+  for (let j = li; j < labelEls.length; j++) labelEls[j].style.display = 'none';
 
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
