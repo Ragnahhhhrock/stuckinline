@@ -79,6 +79,7 @@ $('speed').addEventListener('click', () => {
 a = js.index("// ---------- networking ----------")
 b = js.index("// ---------- the front of the line ----------")
 js = js[:a] + sim + "\n" + js[b:]
+js = js.replace("import { createSound } from './audio.js';", rd("public/audio.js").replace("export function", "function"))
 js = js.replace("from 'three';", "from 'https://cdn.jsdelivr.net/npm/three@%s/build/three.module.js';" % three_ver)
 
 # body markup: drop importmap/css link/module script, add preview controls

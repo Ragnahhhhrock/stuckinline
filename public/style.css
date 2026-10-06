@@ -44,8 +44,10 @@ body { background: #141623; }
 
 #bar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 12px 16px calc(12px + var(--safe-b)); background: linear-gradient(to top, #0b0d14ee, #0b0d1400); }
-#status { color: var(--quiet); font-size: 14px; margin-right: auto; }
+#status { color: var(--quiet); font-size: 14px; margin-right: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #bar button { padding: 10px 16px; }
+#bar #sound { padding: 10px 13px; }
+#sound[aria-pressed="false"] { color: var(--quiet); }
 button { font: inherit; color: #14110a; background: var(--accent); border: 0; border-radius: 999px; padding: 12px 20px; min-height: 44px; font-weight: 600; }
 button.quiet { background: transparent; color: var(--ink); border: 1px solid #ffffff33; }
 button:active { transform: scale(0.97); }

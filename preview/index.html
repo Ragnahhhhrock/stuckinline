@@ -52,8 +52,10 @@ body { background: #141623; }
 
 #bar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 12px 16px calc(12px + var(--safe-b)); background: linear-gradient(to top, #0b0d14ee, #0b0d1400); }
-#status { color: var(--quiet); font-size: 14px; margin-right: auto; }
+#status { color: var(--quiet); font-size: 14px; margin-right: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #bar button { padding: 10px 16px; }
+#bar #sound { padding: 10px 13px; }
+#sound[aria-pressed="false"] { color: var(--quiet); }
 button { font: inherit; color: #14110a; background: var(--accent); border: 0; border-radius: 999px; padding: 12px 20px; min-height: 44px; font-weight: 600; }
 button.quiet { background: transparent; color: var(--ink); border: 1px solid #ffffff33; }
 button:active { transform: scale(0.97); }
@@ -105,6 +107,16 @@ button:active { transform: scale(0.97); }
 .rail.drag .tip { opacity: 1; }
 #scroll.flat .rail, #scroll.flat .rbtn { opacity: 0.35; pointer-events: none; }
 
+/* rules panel */
+#rules { position: fixed; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; padding: 24px; background: #0b0d14f2; }
+#rules[hidden] { display: none; }
+#rules .card { width: 100%; max-width: 380px; max-height: 100%; overflow-y: auto; padding: 24px 20px 20px; border-radius: 20px; background: #1a1d2b; border: 1px solid #ffffff22; }
+#rules h2 { margin: 0 0 16px; font-size: 28px; font-weight: 800; line-height: 1.05; letter-spacing: -0.01em; color: var(--ink); }
+#rules ol { margin: 0 0 20px; padding: 0; list-style: none; counter-reset: rule; }
+#rules li { counter-increment: rule; display: flex; gap: 12px; padding: 8px 0; font-weight: 500; color: var(--ink); }
+#rules li::before { content: counter(rule); flex: none; min-width: 1.4em; color: var(--quiet); font-weight: 700; font-variant-numeric: tabular-nums; }
+#rules button { width: 100%; }
+
 
 :root { color-scheme: dark; }
 #bar { flex-wrap: wrap; justify-content: flex-end; }
@@ -154,6 +166,8 @@ button:active { transform: scale(0.97); }
 
 <footer id="bar">
   <div id="status">Simulated line</div>
+  <button id="sound" type="button" class="quiet" aria-pressed="true">Sound</button>
+  <button id="rulesbtn" type="button" class="quiet" aria-haspopup="dialog" aria-controls="rules">Rules</button>
   <button id="tofront" type="button" class="quiet">Front</button>
   <button id="find" type="button">Find me</button>
 </footer>
@@ -171,12 +185,276 @@ button:active { transform: scale(0.97); }
   </div>
 </section>
 
+<section id="rules" role="dialog" aria-modal="true" aria-labelledby="rulesTitle" hidden>
+  <div class="card">
+    <h2 id="rulesTitle">The rules of the line</h2>
+    <ol>
+      <li>Joining puts you at the back.</li>
+      <li>One person goes through the curtains each minute.</li>
+      <li>Nobody knows what's at the front.</li>
+      <li>Close the tab and you lose your place.</li>
+      <li>Reloads and short drops are forgiven. Hiding the tab starts the same clock.</li>
+      <li>One tab holds your place. Open another and it takes over.</li>
+      <li>Reach the front and you may leave one line for whoever is behind you.</li>
+      <li>Then join the back of the line.</li>
+    </ol>
+    <button id="rulesclose" type="button">Back to the line</button>
+  </div>
+</section>
+
 <div id="elsewhere" hidden>Your place is open in another tab.</div>
 
 
 
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js';
+// Stuck in Line: sound. Everything is synthesised here with the Web Audio API, so there are no audio files to load.
+// A voice is a buzzing source pushed through two band-pass "formant" filters (that is what makes "ah" and "oo");
+// breath, clicks and puffs are filtered noise; thumps are a falling sine.
+const VOWEL = { a: [800, 1250], e: [530, 1900], i: [300, 2250], o: [500, 900], u: [330, 800], uh: [600, 1000], ow: [650, 1100] };
+
+function createSound(opts = {}) {
+  const Ctx = opts.AudioContext || (typeof window !== 'undefined' ? window.AudioContext || window.webkitAudioContext : null);
+  let ctx = null, master = null, noise = null, bed = null, voices = 0, muted = false;
+  try { muted = localStorage.getItem('line-muted') === '1'; } catch {}
+  const LEVEL = 0.9;
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const pick = (a) => a[Math.floor(Math.random() * a.length)];
+  const pf = (p, pts) => pts.map(([a, b]) => [a, b * p]); // scale a pitch curve
+
+  function ensure() {
+    if (ctx || !Ctx) return ctx;
+    try { ctx = new Ctx(); } catch { return null; }
+    const comp = ctx.createDynamicsCompressor(); // so a loud shout never clips
+    comp.threshold.value = -16; comp.ratio.value = 6;
+    master = ctx.createGain(); master.gain.value = muted ? 0 : LEVEL;
+    master.connect(comp); comp.connect(ctx.destination);
+    const len = Math.floor(ctx.sampleRate * 2), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    noise = buf;
+    startBed();
+    return ctx;
+  }
+
+  // ---------- building blocks ----------
+  const ramp = (param, t0, dur, pts) => { // pts: [[fraction of dur, value], ...] in order
+    param.setValueAtTime(pts[0][1], t0);
+    for (let i = 1; i < pts.length; i++) param.linearRampToValueAtTime(pts[i][1], t0 + dur * pts[i][0]);
+  };
+  function env(t0, dur, peak, a, r) {
+    const g = ctx.createGain(), t1 = t0 + dur;
+    a = Math.min(a ?? 0.02, dur * 0.4); r = Math.min(r ?? 0.08, dur * 0.5);
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(peak, t0 + a);
+    g.gain.setValueAtTime(peak, t1 - r);
+    g.gain.linearRampToValueAtTime(0, t1);
+    return g;
+  }
+  function lfo(target, hz, depth, type, t0, t1) {
+    const o = ctx.createOscillator(); o.type = type || 'sine'; o.frequency.value = hz;
+    const g = ctx.createGain(); g.gain.value = depth;
+    o.connect(g); g.connect(target); o.start(t0); o.stop(t1 + 0.05);
+  }
+  function noiseSrc(t0, t1) {
+    const s = ctx.createBufferSource(); s.buffer = noise; s.loop = true;
+    s.start(t0, rnd(0, 1.5)); s.stop(t1 + 0.05);
+    voices++; s.onended = () => { voices--; };
+    return s;
+  }
+  function out(o) { // where the sound sits: how loud and how far left or right
+    const g = ctx.createGain(); g.gain.value = o.g ?? 1;
+    if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = o.p || 0; g.connect(p); p.connect(master); } else g.connect(master);
+    return g;
+  }
+  // a voiced sound: o = { t, dur, f: pitch curve, v: vowels spread across the sound, breath, am: [hz, depth], vib: [hz, Hz], g, a, r, wave }
+  function vox(d, o) {
+    const t0 = ctx.currentTime + (o.t || 0), t1 = t0 + o.dur;
+    const osc = ctx.createOscillator(); osc.type = o.wave || 'sawtooth';
+    ramp(osc.frequency, t0, o.dur, o.f);
+    if (o.vib) lfo(osc.frequency, o.vib[0], o.vib[1], 'sine', t0, t1);
+    const inp = ctx.createGain(); osc.connect(inp);
+    if (o.breath) { const n = noiseSrc(t0, t1), b = ctx.createGain(); b.gain.value = o.breath; n.connect(b); b.connect(inp); }
+    const e = env(t0, o.dur, o.g ?? 1, o.a, o.r), am = ctx.createGain();
+    am.gain.value = 1;
+    if (o.am) { am.gain.value = 1 - o.am[1] / 2; lfo(am.gain, o.am[0], o.am[1] / 2, 'sine', t0, t1); }
+    const vs = o.v.map((k) => VOWEL[k]);
+    [[0, 1, 7], [1, 0.6, 9]].forEach(([i, gain, q]) => {
+      const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = q;
+      const pts = vs.length === 1 ? [[0, vs[0][i]], [1, vs[0][i]]] : vs.map((v, j) => [j / (vs.length - 1), v[i]]);
+      ramp(f.frequency, t0, o.dur, pts);
+      const gg = ctx.createGain(); gg.gain.value = gain;
+      inp.connect(f); f.connect(gg); gg.connect(e);
+    });
+    e.connect(am); am.connect(d);
+    osc.start(t0); osc.stop(t1 + 0.05); voices++; osc.onended = () => { voices--; };
+  }
+  // a puff of filtered noise: o = { t, dur, f: filter curve, q, type, g, a, r, am }
+  function puff(d, o) {
+    const t0 = ctx.currentTime + (o.t || 0), t1 = t0 + o.dur;
+    const s = noiseSrc(t0, t1), f = ctx.createBiquadFilter();
+    f.type = o.type || 'bandpass'; f.Q.value = o.q ?? 1;
+    ramp(f.frequency, t0, o.dur, o.f);
+    const e = env(t0, o.dur, o.g ?? 1, o.a ?? 0.01, o.r ?? 0.05);
+    s.connect(f); f.connect(e);
+    if (o.am) { const am = ctx.createGain(); am.gain.value = 1 - o.am[1] / 2; lfo(am.gain, o.am[0], o.am[1] / 2, 'sine', t0, t1); e.connect(am); am.connect(d); } else e.connect(d);
+  }
+  function thump(d, o) { // a low knock: a sine that falls away
+    const t0 = ctx.currentTime + (o.t || 0), t1 = t0 + o.dur, s = ctx.createOscillator();
+    s.type = 'sine'; ramp(s.frequency, t0, o.dur, o.f);
+    const e = env(t0, o.dur, o.g ?? 1, 0.004, o.dur * 0.7);
+    s.connect(e); e.connect(d); s.start(t0); s.stop(t1 + 0.05); voices++; s.onended = () => { voices--; };
+  }
+
+  // ---------- the crowd: a low murmur bed that swells with how many people are near ----------
+  function startBed() {
+    const t0 = ctx.currentTime;
+    const src = ctx.createBufferSource(); src.buffer = noise; src.loop = true; src.start(t0);
+    const g = ctx.createGain(); g.gain.value = 0;
+    [[520, 0.8, 3.1], [1250, 1.2, 4.4], [2300, 1.6, 5.3]].forEach(([hz, q, wob]) => {
+      const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = hz; f.Q.value = q;
+      const m = ctx.createGain(); m.gain.value = 0.6;
+      lfo(m.gain, wob, 0.35, 'sine', t0, t0 + 1e6); // a soft, syllable-like wobble
+      src.connect(f); f.connect(m); m.connect(g);
+    });
+    g.connect(master);
+    bed = g;
+  }
+
+  // ---------- the sounds. each takes ({ g: loudness, p: pan, pitch, ... }, destination) and returns its length in seconds ----------
+  const lib = {
+    murmur(o, d) { // a few soft syllables of someone talking: o.f is their voice pitch
+      const n = o.n || 3, f = (o.f || 140) * (o.pitch || 1);
+      for (let k = 0; k < n; k++) {
+        const dur = rnd(0.09, 0.15);
+        vox(d, { t: k * rnd(0.15, 0.2), dur, f: [[0, f * rnd(0.95, 1.12)], [1, f * rnd(0.82, 1)]], v: [pick(['a', 'e', 'o', 'u', 'i']), pick(['a', 'o', 'e', 'u'])], breath: 0.15, g: 0.9, a: 0.02 });
+      }
+      return n * 0.2;
+    },
+    meow(o, d) {
+      const p = o.pitch || 1, dur = rnd(0.6, 0.85);
+      vox(d, { dur, f: pf(p, [[0, 430], [0.3, 820], [0.65, 680], [1, 380]]), v: ['u', 'e', 'ow'], breath: 0.1, vib: [6, 14], g: 1.4, a: 0.05, r: 0.2 });
+      return dur;
+    },
+    mrrp(o, d) {
+      const p = o.pitch || 1;
+      vox(d, { dur: 0.13, f: pf(p, [[0, 380], [1, 650]]), v: ['o', 'e'], am: [30, 0.7], g: 1.2, a: 0.01 });
+      vox(d, { t: 0.16, dur: 0.15, f: pf(p, [[0, 500], [1, 840]]), v: ['o', 'e'], am: [30, 0.7], g: 1.2, a: 0.01 });
+      return 0.35;
+    },
+    purr(o, d) { puff(d, { dur: 1.8, f: [[0, 420], [1, 380]], type: 'lowpass', q: 0.7, am: [24, 0.9], g: 0.7, a: 0.3, r: 0.6 }); return 1.8; },
+    huff(o, d) { puff(d, { dur: 0.24, f: [[0, 1200], [1, 700]], q: 0.7, g: 0.9, a: 0.02, r: 0.1 }); return 0.25; },
+    bark(o, d) {
+      const p = o.pitch || 1, n = o.n || 1;
+      for (let k = 0; k < n; k++) {
+        const t = k * 0.3;
+        vox(d, { t, dur: 0.15, f: pf(p * 1.4, [[0, 260], [0.2, 300], [1, 170]]), v: ['a', 'o'], breath: 0.5, g: 1, a: 0.008, r: 0.06 });
+        puff(d, { t, dur: 0.1, f: [[0, 1600], [1, 900]], q: 1, g: 0.5, a: 0.004, r: 0.05 });
+      }
+      return n * 0.3;
+    },
+    sniff(o, d) { [0, 0.15, 0.33].forEach((t) => puff(d, { t, dur: 0.09, f: [[0, 2000], [1, 3000]], q: 2, g: 0.9, a: 0.01 })); return 0.45; },
+    sigh(o, d) { // a long breath out, a little voice at the end of it
+      const p = o.pitch || 1;
+      puff(d, { dur: 1.2, f: [[0, 1400], [1, 550]], q: 1.1, g: 1.1, a: 0.3, r: 0.6 });
+      vox(d, { dur: 1.1, f: pf(p, [[0, 170], [1, 105]]), v: ['a', 'u'], breath: 0.9, g: 0.3, a: 0.3, r: 0.6 });
+      return 1.2;
+    },
+    laugh(o, d) {
+      const p = o.pitch || 1, n = o.n || Math.round(rnd(4, 6));
+      for (let k = 0; k < n; k++) {
+        vox(d, { t: k * 0.17, dur: 0.11, f: pf(p, [[0, 270 * (1 - k * 0.05)], [1, 230 * (1 - k * 0.05)]]), v: ['a', 'a'], breath: 0.45, g: 1.5 - k * 0.12, a: 0.008, r: 0.05 });
+      }
+      puff(d, { t: n * 0.17, dur: 0.3, f: [[0, 1700], [1, 1100]], q: 1, g: 0.25, a: 0.05, r: 0.15 });
+      return n * 0.17 + 0.3;
+    },
+    // ----- fed up -----
+    tsk(o, d) { [0, 0.13].forEach((t) => puff(d, { t, dur: 0.045, f: [[0, 3200], [1, 2600]], q: 3, g: 1.2, a: 0.002, r: 0.02 })); return 0.2; },
+    groan(o, d) {
+      const p = o.pitch || 1;
+      vox(d, { dur: 0.8, f: pf(p, [[0, 170], [0.4, 150], [1, 85]]), v: ['uh', 'o', 'u'], breath: 0.25, vib: [5, 4], g: 1.5, a: 0.08, r: 0.25 });
+      return 0.8;
+    },
+    argh(o, d) {
+      const p = o.pitch || 1;
+      vox(d, { dur: 0.85, f: pf(p, [[0, 320], [0.2, 360], [1, 170]]), v: ['a', 'a', 'o'], breath: 0.35, am: [40, 0.4], g: 1.3, a: 0.03, r: 0.3 });
+      return 0.85;
+    },
+    shout(o, d) { // "oi"
+      const p = o.pitch || 1;
+      vox(d, { dur: 0.4, f: pf(p, [[0, 230], [0.5, 330], [1, 260]]), v: ['o', 'i'], breath: 0.15, g: 1.3, a: 0.02, r: 0.12 });
+      return 0.4;
+    },
+    stomp(o, d) {
+      thump(d, { dur: 0.18, f: [[0, 120], [1, 45]], g: 1.4 });
+      puff(d, { dur: 0.09, f: [[0, 500], [1, 300]], type: 'lowpass', g: 0.8, a: 0.003 });
+      return 0.2;
+    },
+    // ----- bodies -----
+    burp(o, d) {
+      const p = o.pitch || 1, dur = rnd(0.55, 0.9);
+      puff(d, { dur: 0.12, f: [[0, 400], [1, 250]], type: 'lowpass', g: 0.5, a: 0.01 });
+      vox(d, { t: 0.04, dur, f: pf(p, [[0, 95], [0.3, 82], [1, 58]]), v: ['uh', 'o', 'u'], breath: 0.3, am: [rnd(24, 34), 0.9], g: 1.7, a: 0.05, r: 0.2 });
+      return dur + 0.05;
+    },
+    sneeze(o, d) { // "ah... ah... choo"
+      const p = o.pitch || 1, ups = Math.random() < 0.5 ? 2 : 1;
+      let t = 0;
+      for (let k = 0; k < ups; k++) {
+        puff(d, { t, dur: 0.42, f: [[0, 500], [1, 1900]], q: 1.5, g: 0.9, a: 0.3, r: 0.06 });
+        vox(d, { t, dur: 0.42, f: pf(p, [[0, 200], [1, 270]]), v: ['a', 'a'], breath: 0.8, g: 0.22, a: 0.3, r: 0.06 });
+        t += 0.62;
+      }
+      puff(d, { t, dur: 0.14, f: [[0, 4200], [1, 2400]], q: 0.9, g: 0.8, a: 0.004, r: 0.07 });
+      vox(d, { t: t + 0.02, dur: 0.3, f: pf(p, [[0, 320], [1, 170]]), v: ['u', 'o'], breath: 0.6, g: 0.8, a: 0.01, r: 0.12 });
+      return t + 0.35;
+    },
+    fart(o, d) {
+      const p = o.pitch || 1, squeak = Math.random() < 0.25, dur = squeak ? rnd(0.2, 0.4) : rnd(0.35, 0.95);
+      const t0 = ctx.currentTime, t1 = t0 + dur, base = (squeak ? rnd(190, 260) : rnd(75, 125)) * p;
+      const osc = ctx.createOscillator(); osc.type = 'sawtooth';
+      ramp(osc.frequency, t0, dur, [[0, base], [0.4, base * rnd(0.8, 1.05)], [1, base * rnd(0.45, 0.8)]]);
+      lfo(osc.frequency, rnd(26, 52), base * 0.18, 'sine', t0, t1); // the wobble
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = squeak ? 1800 : 650; lp.Q.value = 3;
+      const e = env(t0, dur, 0.55, 0.015, 0.1), am = ctx.createGain();
+      am.gain.value = 0.5; lfo(am.gain, rnd(20, 46), 0.5, 'square', t0, t1); // the flutter
+      osc.connect(lp); lp.connect(e); e.connect(am); am.connect(d);
+      osc.start(t0); osc.stop(t1 + 0.05); voices++; osc.onended = () => { voices--; };
+      puff(d, { dur, f: [[0, 900], [1, 500]], type: 'lowpass', g: 0.2, a: 0.02, r: 0.1, am: [rnd(20, 40), 0.8] });
+      return dur;
+    },
+  };
+
+  function play(name, o = {}) {
+    if (!ensure() || muted || voices > 16 || !lib[name]) return 0;
+    if (ctx.state !== 'running' && !opts.force) return 0; // not unlocked yet
+    return lib[name](o, out(o)) || 0;
+  }
+
+  function setMuted(m) {
+    muted = !!m;
+    try { localStorage.setItem('line-muted', muted ? '1' : '0'); } catch {}
+    if (master) master.gain.setTargetAtTime(muted ? 0 : LEVEL, ctx.currentTime, 0.05);
+  }
+  function setCrowd(n) { // how many people are close: the murmur bed follows
+    if (bed) bed.gain.setTargetAtTime(0.14 * Math.min(1, n / 18), ctx.currentTime, 0.8);
+  }
+  function unlock() { const c = ensure(); if (c && c.state !== 'running' && !opts.force) c.resume(); }
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (!ctx) return;
+      if (document.hidden) ctx.suspend(); else ctx.resume();
+    });
+  }
+
+  return {
+    play, unlock, setMuted, setCrowd,
+    get muted() { return muted; },
+    get active() { return !!ctx && !muted && ctx.state === 'running'; },
+    names: Object.keys(lib),
+  };
+}
+
 
 const $ = (id) => document.getElementById(id);
 const SP = 1.15; // spacing between people along the line
@@ -298,6 +576,53 @@ const hairMs = hairGeos.map((g) => mk(g, false, true));
 const caneGeo = mergeParts([limb([0.31, 0.64, -0.05], [0.36, 0.0, -0.17], 0.03), limb([0.31, 0.64, -0.05], [0.31, 0.67, 0.04], 0.03)]);
 const caneM = mk(caneGeo);
 
+// ---------- mobility aids: plain boxy frames in kerb and quiet, dark wheels and tips (never gold) ----------
+const AID = 0x4a4e63, AID_LIGHT = 0x8c93a6, AID_DARK = 0x0b0d14;
+const SEAT_DROP = 0.14; // seated people sit lower than standing ones
+// wheelchair: the chair, a pair of big wheels and a pair of casters (the wheels are separate so they can roll), and seated legs
+const chairGeo = mergeParts([
+  bp(Box(0.46, 0.04, 0.44), { p: [0, 0.40, 0], c: AID }), // seat
+  bp(Box(0.46, 0.40, 0.04), { p: [0, 0.62, 0.22], c: AID }), // back
+  bp(Box(0.04, 0.04, 0.30), { p: [-0.25, 0.56, 0.05], c: AID_LIGHT }), bp(Box(0.04, 0.04, 0.30), { p: [0.25, 0.56, 0.05], c: AID_LIGHT }), // armrests
+  bp(Box(0.03, 0.16, 0.03), { p: [-0.25, 0.48, -0.08], c: AID_LIGHT }), bp(Box(0.03, 0.16, 0.03), { p: [0.25, 0.48, -0.08], c: AID_LIGHT }),
+  bp(Box(0.56, 0.03, 0.03), { p: [0, 0.28, 0.12], c: AID_LIGHT }), // axle
+  limb([-0.24, 0.30, 0.05], [-0.20, 0.15, -0.34], 0.03, AID_LIGHT), limb([0.24, 0.30, 0.05], [0.20, 0.15, -0.34], 0.03, AID_LIGHT), // side frames to the casters
+  limb([-0.20, 0.32, -0.22], [-0.20, 0.15, -0.46], 0.03, AID_LIGHT), limb([0.20, 0.32, -0.22], [0.20, 0.15, -0.46], 0.03, AID_LIGHT), // footrest struts
+  bp(Box(0.40, 0.02, 0.15), { p: [0, 0.14, -0.46], c: AID }), // footplate
+  limb([-0.22, 0.78, 0.24], [-0.22, 0.82, 0.38], 0.03, AID_LIGHT), limb([0.22, 0.78, 0.24], [0.22, 0.82, 0.38], 0.03, AID_LIGHT), // push handles
+], true);
+const wheelPart = (x, y, z, r, th) => [
+  bp(new THREE.CylinderGeometry(r, r, th, 12), { r: [0, 0, Math.PI / 2], p: [x, y, z], c: AID_DARK }), // tyre
+  bp(Box(th * 1.3, r * 1.5, r * 0.12), { p: [x, y, z], c: AID_LIGHT }), bp(Box(th * 1.3, r * 0.12, r * 1.5), { p: [x, y, z], c: AID_LIGHT }), // spokes
+];
+const bigWheelGeo = mergeParts([...wheelPart(-0.28, 0, 0, 0.28, 0.04), ...wheelPart(0.28, 0, 0, 0.28, 0.04)], true); // rolls about its own centre
+const casterGeo = mergeParts([...wheelPart(-0.20, 0, 0, 0.07, 0.035), ...wheelPart(0.20, 0, 0, 0.07, 0.035)], true);
+const sitLegGeo = mergeParts([-0.105, 0.105].flatMap((x) => [
+  bp(Box(0.17, 0.15, 0.40), { p: [x, 0.60, -0.20], c: 0xffffff }), // thighs
+  bp(Box(0.15, 0.24, 0.15), { p: [x, 0.49, -0.41], c: 0xffffff }), // shins
+  bp(Box(0.18, 0.08, 0.26), { p: [x, 0.34, -0.46], c: 0x16161c }), // shoes
+]), true);
+// walking frame: four legs, side rails, front rails and grips
+const frameGeo = mergeParts([-0.30, 0.30].flatMap((x) => [
+  limb([x, 0.62, 0.04], [x, 0.62, -0.40], 0.035, AID_LIGHT), // side rail
+  limb([x, 0.62, -0.40], [x, 0.0, -0.40], 0.035, AID_LIGHT), limb([x, 0.62, 0.04], [x, 0.0, 0.04], 0.035, AID_LIGHT), // legs
+  bp(Box(0.04, 0.04, 0.12), { p: [x, 0.64, 0.0], c: AID }), // grip
+  bp(Box(0.05, 0.03, 0.05), { p: [x, 0.015, -0.40], c: AID_DARK }), bp(Box(0.05, 0.03, 0.05), { p: [x, 0.015, 0.04], c: AID_DARK }), // tips
+]).concat([
+  limb([-0.30, 0.62, -0.40], [0.30, 0.62, -0.40], 0.03, AID_LIGHT), limb([-0.30, 0.40, -0.40], [0.30, 0.40, -0.40], 0.03, AID_LIGHT),
+]), true);
+// underarm crutches: pad, shaft, hand grip and rubber tip, one each side
+const crutchGeo = mergeParts([-1, 1].flatMap((s) => [
+  limb([0.26 * s, 1.08, -0.02], [0.36 * s, 0.0, -0.20], 0.03, AID_LIGHT), // shaft
+  bp(Box(0.11, 0.03, 0.07), { p: [0.26 * s, 1.09, -0.02], c: AID }), // pad
+  bp(Box(0.04, 0.04, 0.12), { p: [0.31 * s, 0.60, -0.08], c: AID }), // grip
+  bp(Box(0.045, 0.03, 0.045), { p: [0.36 * s, 0.015, -0.20], c: AID_DARK }), // tip
+]), true);
+const chairM = mk(chairGeo, true), bigWheelM = mk(bigWheelGeo, true), casterM = mk(casterGeo, true), sitLegM = mk(sitLegGeo, true);
+const frameM = mk(frameGeo, true), crutchM = mk(crutchGeo, true);
+const ZERO = new THREE.Matrix4().makeScale(0, 0, 0); // hides a part (a seated person's standing legs)
+const AM = new THREE.Matrix4();
+
 // ---------- dogs and cats: one body mesh each (white parts take the coat colour), legs swing in diagonal pairs ----------
 const pawLeg = (x, z, hip, t) => bp(Box(t, hip, t), { p: [x, hip / 2, z], c: 0xffffff });
 const DOG_HIP = 0.40, CAT_HIP = 0.21;
@@ -330,7 +655,7 @@ const catLegB = mergeParts([pawLeg(0.06, -0.15, CAT_HIP, 0.055), pawLeg(-0.06, 0
 const collar = (r, t, y, z, tilt) => bp(new THREE.TorusGeometry(r, t, 6, 14), { r: [tilt, 0, 0], p: [0, y, z] });
 const dogM = mk(dogGeo, true), dogLAM = mk(dogLegA, true), dogLBM = mk(dogLegB, true), dogCollarM = mk(collar(0.095, 0.022, 0.59, -0.365, 0.98));
 const catM = mk(catGeo, true), catLAM = mk(catLegA, true), catLBM = mk(catLegB, true), catCollarM = mk(collar(0.07, 0.016, 0.35, -0.22, 1.25));
-const allMeshes = [shirtM, skinM, headM, legLM, legRM, faceM, noseM, glassM, beardM, stacheM, caneM, ...hairMs, dogM, dogLAM, dogLBM, dogCollarM, catM, catLAM, catLBM, catCollarM];
+const allMeshes = [shirtM, skinM, headM, legLM, legRM, faceM, noseM, glassM, beardM, stacheM, caneM, chairM, bigWheelM, casterM, sitLegM, frameM, crutchM, ...hairMs,dogM, dogLAM, dogLBM, dogCollarM, catM, catLAM, catLBM, catCollarM];
 const hiN = [0, 0, 0, 0, 0];
 const H = new THREE.Matrix4(), M = new THREE.Matrix4(), T = new THREE.Matrix4(), T2 = new THREE.Matrix4(), S = new THREE.Matrix4(), Q = new THREE.Matrix4(), F = new THREE.Matrix4();
 const YOU_COLOR = new THREE.Color(0xffcf5c);
@@ -711,8 +1036,8 @@ const CAT_COATS = ['#2a2624', '#e8892e', '#9a9a9a', '#f0ece4', '#6e5a46', '#c8a8
 const COLLARS = ['#c0392b', '#2e6fd8', '#2f9e6a', '#7a3fb0', '#d8a020'].map((c) => new THREE.Color(c));
 const CANE = new THREE.Color('#5a3b22');
 // Everyone's kind comes from their seed, so each visit (a new place at the back) draws a new one at random.
-const KINDS = [['adult', 0.55], ['child', 0.15], ['senior', 0.15], ['dog', 0.08], ['cat', 0.07]];
-const KIND_NAME = { adult: 'a grown-up', child: 'a child', senior: 'a senior citizen', dog: 'a dog', cat: 'a cat' };
+const KINDS = [['adult', 0.46], ['child', 0.15], ['senior', 0.12], ['wheelchair', 0.05], ['frame', 0.04], ['crutches', 0.04], ['dog', 0.08], ['cat', 0.06]];
+const KIND_NAME = { adult: 'a grown-up', child: 'a child', senior: 'a senior citizen', wheelchair: 'a wheelchair user', frame: 'a person with a walking frame', crutches: 'a person on crutches', dog: 'a dog', cat: 'a cat' };
 function kindOf(seed) {
   let x = hash01(seed + 991.7);
   for (const [k, p] of KINDS) { if (x < p) return k; x -= p; }
@@ -725,7 +1050,8 @@ function makeTraits(seed) { // everything about a person's (or pet's) look comes
     const dog = kind === 'dog', sz = dog ? 0.8 + 0.5 * r(1) : 0.9 + 0.2 * r(1), coats = dog ? DOG_COATS : CAT_COATS;
     return { kind, animal: true, sz, coat: coats[Math.floor(r(2) * coats.length)], collar: COLLARS[Math.floor(r(3) * COLLARS.length)], h: sz, lh: (dog ? 1.0 : 0.72) * sz };
   }
-  const child = kind === 'child', senior = kind === 'senior';
+  // people with an aid are any age; walking frames and wheelchairs lean older
+  const child = kind === 'child', senior = kind === 'senior' || (kind === 'frame' && r(30) < 0.7) || (kind === 'wheelchair' && r(31) < 0.3);
   let hairStyle = Math.floor(r(1) * 6); // short, long, bun, spiky, afro, bald
   if (child && hairStyle === 5) hairStyle = 0;
   if (senior && r(21) < 0.3) hairStyle = 5;
@@ -745,9 +1071,11 @@ function makeTraits(seed) { // everything about a person's (or pet's) look comes
     h: child ? 0.58 + 0.12 * r(14) : senior ? 0.9 + 0.1 * r(14) : 0.92 + 0.16 * r(14),
     fx: 0.9 + 0.22 * r(15), fy: 0.96 + 0.1 * r(16), ns: child ? 0.7 : 0.8 + 0.6 * r(17),
     hd: child ? 1.32 : 1, phone: !child && r(18) < 0.2, chatty: r(19) < 0.16, // head scale: children have big heads for their size
-    stoop: senior ? 0.06 + 0.07 * r(22) : 0, cane: senior && r(23) < 0.45, // seniors lean forward a little; some have a stick
+    stoop: kind === 'frame' ? 0.10 + 0.05 * r(22) : kind === 'senior' ? 0.06 + 0.07 * r(22) : 0, // seniors lean forward a little; so do walking frame users
+    cane: kind === 'senior' && r(23) < 0.45, // some seniors have a stick
+    hurt: kind === 'crutches' ? (r(24) < 0.5 ? -1 : 1) : 0, // crutches: which leg is held up (-1 left, 1 right)
   };
-  t.lh = 1.95 * t.h + (child ? 0.1 : 0); // label height above the ground
+  t.lh = 1.95 * t.h + (child ? 0.1 : 0) - (kind === 'wheelchair' ? SEAT_DROP : 0); // label height above the ground
   return t;
 }
 
@@ -1010,7 +1338,10 @@ const SAY = {
   adult: ['Is this the line?', 'How long now?', 'Has it moved?', 'My feet are killing me.', 'Anyone know what’s in there?', 'Worth it, surely.', 'Just one more minute…', 'I’ve been here ages.', 'Typical.', 'Don’t push!', 'I hope it’s good.', 'Is anyone even at the front?'],
   child: ['Are we there yet?', 'I’m bored!', 'Can I have a snack?', 'How much longer?', 'Why is it so slow?', 'I need the toilet.', 'Look, a doggy!', 'Carry me!'],
   senior: ['In my day this took a minute.', 'Is it moving?', 'What’s at the front?', 'Hmm? Speak up.', 'I’ve queued for less.', 'Mind my stick.', 'Wake me when it’s my turn.', 'Back in ’62 we knew what we were queueing for.'],
-  dog: ['Woof!', 'Arf arf!', 'Sniff sniff…', 'Woof woof!', 'Walkies?', 'Bork!'],
+  wheelchair: ['Is it moving?', 'Mind the wheels.', 'I have all day.', 'Slowly, but surely.', 'Please don’t push.', 'Plenty of room here.', 'I can see everyone’s knees.'],
+  frame: ['One step at a time.', 'Mind the frame.', 'No rush.', 'Slow and steady.', 'I’ll get there.', 'Is it moving?'],
+  crutches: ['Hop, hop.', 'Mind the crutches.', 'Nearly there. Probably.', 'Is it moving?', 'I’ve been standing a while.', 'Mind my foot.'],
+  dog: ['Woof!','Arf arf!', 'Sniff sniff…', 'Woof woof!', 'Walkies?', 'Bork!'],
   cat: ['Meow.', 'Mrrp?', 'Purr…', 'Hmph.', 'Mew!', 'Mrow.'],
   bouncer: ['Wait your turn.', 'Nobody skips.', 'Move along, please.', 'Keep it moving.', 'Behind the rope, sir.', 'Not yet.'],
   next: ['Next!', 'In you go.', 'Mind the step.'],
@@ -1025,6 +1356,111 @@ function bubEl(i) {
   if (!bubEls[i]) { const d = document.createElement('div'); d.className = 'bub'; bubblesEl.appendChild(d); bubEls[i] = d; }
   return bubEls[i];
 }
+// ---------- sound: positional, and tied to who is near the camera ----------
+const snd = createSound();
+for (const ev of ['pointerdown', 'touchend', 'click', 'keydown']) addEventListener(ev, () => snd.unlock(), { passive: true }); // browsers need a first touch
+const soundBtn = $('sound');
+function soundLabel() { soundBtn.textContent = snd.muted ? 'Muted' : 'Sound'; soundBtn.setAttribute('aria-pressed', String(!snd.muted)); }
+soundBtn.addEventListener('click', () => { snd.unlock(); snd.setMuted(!snd.muted); soundLabel(); });
+soundLabel();
+const hearRel = new THREE.Vector3();
+function hear(e, y) { // how loud and where, for someone at (e, y) as heard from the camera
+  hearRel.set(e.x - camera.position.x, y - camera.position.y, e.z - camera.position.z);
+  const d = hearRel.length();
+  if (d > 36) return null;
+  const m = camera.matrixWorld.elements, side = (hearRel.x * m[0] + hearRel.y * m[1] + hearRel.z * m[2]) / Math.max(d, 1);
+  return { g: Math.pow(clamp(7 / (d + 4), 0, 1), 1.5) * (1 - d / 36), p: clamp(side * 1.3, -1, 1), d };
+}
+function say(e, txt, dur, delay = 0) { e.say = { txt, from: elapsed + delay, until: elapsed + delay + dur }; } // a bubble outside the usual rhythm
+const voiceOf = (e) => (e.tr.kind === 'child' ? 300 + 60 * hash01(e.seed + 2.2) : (100 + 120 * hash01(e.seed + 2.2)) * (e.tr.kind === 'senior' ? 0.92 : 1));
+const pitchOf = (e) => voiceOf(e) / 150;
+const waited = (e) => clamp(1 - e.pos / Math.max(state.total, 1), 0, 1); // the nearer the front, the longer they have stood here
+function onSpeech(e, txt, y) { // a speech bubble has just opened: make the matching noise
+  const h = hear(e, y);
+  if (!h || h.g < 0.02) return;
+  const k = e.tr.kind, o = { g: h.g, p: h.p };
+  if (k === 'dog') snd.play(/sniff/i.test(txt) ? 'sniff' : 'bark', { ...o, pitch: 1 / e.tr.sz, n: /woof woof|arf arf/i.test(txt) ? 2 : 1 });
+  else if (k === 'cat') snd.play(/purr/i.test(txt) ? 'purr' : /hmph/i.test(txt) ? 'huff' : /mrrp/i.test(txt) ? 'mrrp' : 'meow', { ...o, pitch: 0.9 + 0.25 * hash01(e.seed + 5.1) });
+  else snd.play('murmur', { ...o, g: o.g * 0.8, f: voiceOf(e), n: clamp(Math.ceil(txt.length / 4), 2, 7) });
+}
+const FUMES = ['Ugh.', 'Seriously?', 'Come on.', 'This is ridiculous.', 'Oh, for goodness’ sake.', 'Hurry up.', 'I’ve had enough.'];
+let sndPool = [], sndPeople = [], sndPoolT = 0;
+function soundTick(dt, n, t) {
+  if (!snd.active) return;
+  if (!$('front').hidden) { snd.setCrowd(0); return; }
+  sndPoolT -= dt;
+  if (sndPoolT <= 0) { // who can be heard, refreshed a few times a second
+    sndPoolT = 0.3; sndPool.length = 0; sndPeople.length = 0;
+    let near = 0;
+    for (let i = 0; i < n; i++) {
+      const e = lbE[i];
+      if (e.walk || !e.pos) continue;
+      const y = lbY[i] + e.tr.lh * 0.85, h = hear(e, y);
+      if (!h || h.g < 0.03) continue;
+      const s = { e, y }; sndPool.push(s);
+      if (!e.tr.animal) sndPeople.push(s);
+      if (h.d < 16) near++;
+    }
+    snd.setCrowd(near);
+  }
+  if (!sndPeople.length) return;
+  const crowd = clamp(sndPeople.length / 8, 0.2, 1), roll = (rate) => Math.random() < rate * crowd * dt;
+  const someone = (ok) => { // a random person nearby, favouring the nearer of two picks
+    const l = ok ? sndPeople.filter((s) => ok(s.e)) : sndPeople;
+    if (!l.length) return null;
+    const a = l[Math.floor(Math.random() * l.length)], b = l[Math.floor(Math.random() * l.length)];
+    const ha = hear(a.e, a.y), hb = hear(b.e, b.y);
+    return ha && hb ? (ha.g >= hb.g ? { ...a, h: ha } : { ...b, h: hb }) : null;
+  };
+  const free = (e) => !(e.say && elapsed < e.say.until);
+  if (roll(0.7)) { const s = someone(free); if (s) snd.play('murmur', { g: s.h.g * 0.6, p: s.h.p, f: voiceOf(s.e), n: 2 + Math.floor(Math.random() * 3) }); } // quiet chatter
+  if (roll(0.1)) { // a tired sigh, more often from those who have stood a long time
+    const s = someone((e) => e.tr.kind === 'senior' || hash01(e.seed + 40) < 0.3 + 0.5 * waited(e));
+    if (s) { snd.play('sigh', { g: s.h.g, p: s.h.p, pitch: pitchOf(s.e) }); say(s.e, 'Hhhh.', 1.6); }
+  }
+  if (roll(0.05)) { const s = someone(); if (s) { snd.play('laugh', { g: s.h.g, p: s.h.p, pitch: pitchOf(s.e) }); say(s.e, 'Ha ha.', 1.5); } }
+  if (roll(0.022)) {
+    const s = someone();
+    if (s) { const L = snd.play('burp', { g: s.h.g, p: s.h.p, pitch: pitchOf(s.e) }); if (Math.random() < 0.5) say(s.e, 'Pardon me.', 1.8, L + 0.2); }
+  }
+  if (roll(0.028)) {
+    const s = someone();
+    if (s) {
+      const L = snd.play('sneeze', { g: s.h.g, p: s.h.p, pitch: pitchOf(s.e) });
+      say(s.e, 'Achoo.', 1.4, Math.max(0, L - 0.4));
+      const nb = sndPeople.find((q) => q.e !== s.e && Math.abs(q.e.pos - s.e.pos) === 1 && free(q.e));
+      if (nb && Math.random() < 0.55) say(nb.e, 'Bless you.', 1.6, L + 0.5);
+    }
+  }
+  if (roll(0.028)) {
+    const s = someone();
+    if (s) {
+      snd.play('fart', { g: s.h.g, p: s.h.p, pitch: pitchOf(s.e) });
+      if (Math.random() < 0.5) say(s.e, 'Sorry.', 1.6, 1.0);
+      const nb = sndPeople.find((q) => q.e !== s.e && Math.abs(q.e.pos - s.e.pos) === 1 && free(q.e));
+      if (nb && Math.random() < 0.35) say(nb.e, 'Seriously?', 1.6, 1.8);
+    }
+  }
+  // fed up: some people, more of them the longer they have waited, get through a bout of grumbling every minute or so
+  for (const s of sndPeople) {
+    const e = s.e;
+    if (hash01(e.seed + 88) >= 0.06 + 0.3 * waited(e)) continue;
+    const P = 45 + 60 * hash01(e.seed + 89), u = t + hash01(e.seed + 90) * P * 3, c = u % P, cyc = Math.floor(u / P);
+    if (c > 7) continue;
+    const r = hash01(e.seed + cyc * 3.1), steps = [[0.2, 'tsk'], [1.7, 'huff'], [3.3, r < 0.5 ? 'groan' : 'argh'], [5.4, r < 0.5 ? 'shout' : 'stomp']];
+    for (let k = 0; k < steps.length; k++) {
+      const key = cyc * 10 + k;
+      if (c < steps[k][0] || (e._fu ?? -1) >= key) continue;
+      e._fu = key;
+      const h = hear(e, s.y);
+      if (!h) break;
+      snd.play(steps[k][1], { g: h.g * 1.6, p: h.p, pitch: pitchOf(e) });
+      if (steps[k][1] !== 'huff' && steps[k][1] !== 'stomp') say(e, FUMES[Math.floor(hash01(e.seed + key * 1.9) * FUMES.length)], 2.2);
+      break;
+    }
+  }
+}
+
 let lastT = 0, elapsed = 0;
 if (location.hash.startsWith('#debug')) window.__line = { get open() { return curtainAmt; }, get yaw() { return yaw; }, get pitch() { return pitch; }, get zoom() { return zoom; }, get focus() { return focusPos; }, get atFront() { return atFront; }, get walkers() { return [...entities.values()].filter((e) => e.walk).length; } };
 
@@ -1053,7 +1489,7 @@ function frame(now) {
   bouncers.forEach((b, i) => { b.scale.y = 1.3 * (1 + Math.sin(t * 1.1 + i * 2.3) * 0.006); }); // slow, steady breathing
 
   // people ease towards their target spots, so the line visibly shuffles forward; legs swing while they move
-  let n = 0, hu = 0, gi = 0, bi = 0, si = 0, ki = 0, di = 0, ci = 0;
+  let n = 0, hu = 0, gi = 0, bi = 0, si = 0, ki = 0, di = 0, ci = 0, wi = 0, fi = 0, ri = 0;
   hiN.fill(0);
   let you = null;
   for (const [id, e] of entities) {
@@ -1073,7 +1509,8 @@ function frame(now) {
     e.ph = (e.ph || 0) + speed * dt * 5;
     const sw = Math.sin(e.ph) * e.amp;
     if (speed > 0.4) y += Math.abs(Math.sin(e.ph)) * 0.03;
-    dummy.position.set(e.x, y, e.z);
+    const chair = tr.kind === 'wheelchair';
+    dummy.position.set(e.x, y - (chair ? SEAT_DROP : 0), e.z);
     let yawA = 0, lean = 0, roll = 0;
     if (!e.walk) { // idle life: weight shifts, glances around, some check a phone, a few turn to look back along the line
       const idle = clamp(1 - speed * 2, 0, 1), sd = e.seed;
@@ -1101,8 +1538,12 @@ function frame(now) {
       shirtM.setMatrixAt(hn, M); shirtM.setColorAt(hn, isYou ? YOU_COLOR : tr.shirt);
       skinM.setMatrixAt(hn, M); skinM.setColorAt(hn, tr.skin);
       T.makeTranslation(0, 0.62, 0); T2.makeTranslation(0, -0.62, 0); // legs swing from the hip
-      Q.makeRotationX(sw); F.multiplyMatrices(M, T).multiply(Q).multiply(T2); legLM.setMatrixAt(hn, F); legLM.setColorAt(hn, tr.pants);
-      Q.makeRotationX(-sw); F.multiplyMatrices(M, T).multiply(Q).multiply(T2); legRM.setMatrixAt(hn, F); legRM.setColorAt(hn, tr.pants);
+      const swL = tr.hurt === -1 ? 0.7 : sw, swR = tr.hurt === 1 ? 0.7 : -sw; // on crutches one foot is held off the ground
+      if (chair) { legLM.setMatrixAt(hn, ZERO); legRM.setMatrixAt(hn, ZERO); } // seated: the standing legs are hidden
+      else {
+        Q.makeRotationX(swL); F.multiplyMatrices(M, T).multiply(Q).multiply(T2); legLM.setMatrixAt(hn, F); legLM.setColorAt(hn, tr.pants);
+        Q.makeRotationX(swR); F.multiplyMatrices(M, T).multiply(Q).multiply(T2); legRM.setMatrixAt(hn, F); legRM.setColorAt(hn, tr.pants);
+      }
       // the head and everything on it scales about the head centre (children's heads are bigger for their size)
       T.makeTranslation(0, HY, 0); T2.makeTranslation(0, -HY, 0); S.makeScale(tr.hd, tr.hd, tr.hd);
       H.multiplyMatrices(M, T).multiply(S).multiply(T2);
@@ -1117,6 +1558,18 @@ function frame(now) {
       else if (tr.facial === 2) { T.makeTranslation(0, 1.345, -0.2); S.makeScale(tr.fx, 1, 1); F.multiplyMatrices(H, T).multiply(S); stacheM.setMatrixAt(si, F); stacheM.setColorAt(si, tr.fcol); si++; }
       if (tr.hairStyle < 5) { const hm = hairMs[tr.hairStyle], hi = hiN[tr.hairStyle]++; hm.setMatrixAt(hi, H); hm.setColorAt(hi, tr.hair); }
       if (tr.cane) { caneM.setMatrixAt(ki, M); caneM.setColorAt(ki, CANE); ki++; }
+      if (tr.hurt) { crutchM.setMatrixAt(ri++, M); } // crutches move with the body
+      if (chair || tr.kind === 'frame') { // the chair and the frame stay upright and only turn with the person
+        AM.makeRotationY(yawA); AM.setPosition(e.x, y + (!chair && speed > 0.4 ? Math.abs(Math.sin(e.ph)) * 0.05 : 0), e.z); // a frame is lifted with each step
+        if (chair) {
+          chairM.setMatrixAt(wi, AM);
+          e.rl = (e.rl || 0) + speed * dt; // distance rolled: the wheels turn as the line moves
+          T.makeTranslation(0, 0.28, 0.12); Q.makeRotationX(-e.rl / 0.28); F.multiplyMatrices(AM, T).multiply(Q); bigWheelM.setMatrixAt(wi, F);
+          T.makeTranslation(0, 0.07, -0.34); Q.makeRotationX(-e.rl / 0.07); F.multiplyMatrices(AM, T).multiply(Q); casterM.setMatrixAt(wi, F);
+          sitLegM.setMatrixAt(wi, M); sitLegM.setColorAt(wi, tr.pants);
+          wi++;
+        } else frameM.setMatrixAt(fi++, AM);
+      }
     }
     if (isYou) you = e;
     lbE[n] = e; lbY[n] = y;
@@ -1124,6 +1577,7 @@ function frame(now) {
   }
   shirtM.count = skinM.count = headM.count = legLM.count = legRM.count = faceM.count = noseM.count = hu;
   glassM.count = gi; beardM.count = bi; stacheM.count = si; caneM.count = ki;
+  chairM.count = bigWheelM.count = casterM.count = sitLegM.count = wi; frameM.count = fi; crutchM.count = ri;
   dogM.count = dogLAM.count = dogLBM.count = dogCollarM.count = di;
   catM.count = catLAM.count = catLBM.count = catCollarM.count = ci;
   hairMs.forEach((hm, i) => { hm.count = hiN[i]; });
@@ -1204,7 +1658,11 @@ function frame(now) {
   for (let i = 0; i < n; i++) {
     const e = lbE[i];
     if (e.walk || !e.pos) continue;
-    consider(e.x, lbY[i] + e.tr.lh + 0.05, e.z, speech(e.seed, e.tr.kind, t), e === you ? 'you' : '');
+    const base = speech(e.seed, e.tr.kind, t);
+    if (base && !e._sp) onSpeech(e, base.txt, lbY[i] + e.tr.lh * 0.85);
+    e._sp = !!base;
+    const sy = e.say && elapsed >= e.say.from && elapsed < e.say.until ? { txt: e.say.txt, a: Math.min(1, (elapsed - e.say.from) / 0.3, (e.say.until - elapsed) / 0.5) } : null;
+    consider(e.x, lbY[i] + e.tr.lh + 0.05, e.z, sy || base, e === you ? 'you' : '');
   }
   if (stage.visible) bouncers.forEach((b, i) => {
     const sp = curtainAmt > 0.6 && i === 0 ? { txt: SAY.next[Math.floor(t / 4) % SAY.next.length], a: 1 } : speech(9000 + i * 17, 'bouncer', t);
@@ -1223,6 +1681,7 @@ function frame(now) {
   }
   for (let j = nb; j < bubEls.length; j++) bubEls[j].style.display = 'none';
   updateFocusChip(lbE, n); updateRails();
+  soundTick(dt, n, t);
 
   applyTime(worldHour());
   streetUpdate(camera.position.x, camera.position.z, t);
@@ -1354,6 +1813,14 @@ $('rejoin').addEventListener('click', () => {
   $('front').hidden = true;
   resetView();
 });
+
+// rules panel
+const rulesEl = $('rules');
+function setRules(on) { rulesEl.hidden = !on; (on ? $('rulesclose') : $('rulesbtn')).focus(); }
+$('rulesbtn').addEventListener('click', () => setRules(true));
+$('rulesclose').addEventListener('click', () => setRules(false));
+rulesEl.addEventListener('click', (e) => { if (e.target === rulesEl) setRules(false); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !rulesEl.hidden) setRules(false); });
 
 </script>
 </body>

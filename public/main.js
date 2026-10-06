@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createSound } from './audio.js';
 
 const $ = (id) => document.getElementById(id);
 const SP = 1.15; // spacing between people along the line
@@ -900,6 +901,111 @@ function bubEl(i) {
   if (!bubEls[i]) { const d = document.createElement('div'); d.className = 'bub'; bubblesEl.appendChild(d); bubEls[i] = d; }
   return bubEls[i];
 }
+// ---------- sound: positional, and tied to who is near the camera ----------
+const snd = createSound();
+for (const ev of ['pointerdown', 'touchend', 'click', 'keydown']) addEventListener(ev, () => snd.unlock(), { passive: true }); // browsers need a first touch
+const soundBtn = $('sound');
+function soundLabel() { soundBtn.textContent = snd.muted ? 'Muted' : 'Sound'; soundBtn.setAttribute('aria-pressed', String(!snd.muted)); }
+soundBtn.addEventListener('click', () => { snd.unlock(); snd.setMuted(!snd.muted); soundLabel(); });
+soundLabel();
+const hearRel = new THREE.Vector3();
+function hear(e, y) { // how loud and where, for someone at (e, y) as heard from the camera
+  hearRel.set(e.x - camera.position.x, y - camera.position.y, e.z - camera.position.z);
+  const d = hearRel.length();
+  if (d > 36) return null;
+  const m = camera.matrixWorld.elements, side = (hearRel.x * m[0] + hearRel.y * m[1] + hearRel.z * m[2]) / Math.max(d, 1);
+  return { g: Math.pow(clamp(7 / (d + 4), 0, 1), 1.5) * (1 - d / 36), p: clamp(side * 1.3, -1, 1), d };
+}
+function say(e, txt, dur, delay = 0) { e.say = { txt, from: elapsed + delay, until: elapsed + delay + dur }; } // a bubble outside the usual rhythm
+const voiceOf = (e) => (e.tr.kind === 'child' ? 300 + 60 * hash01(e.seed + 2.2) : (100 + 120 * hash01(e.seed + 2.2)) * (e.tr.kind === 'senior' ? 0.92 : 1));
+const pitchOf = (e) => voiceOf(e) / 150;
+const waited = (e) => clamp(1 - e.pos / Math.max(state.total, 1), 0, 1); // the nearer the front, the longer they have stood here
+function onSpeech(e, txt, y) { // a speech bubble has just opened: make the matching noise
+  const h = hear(e, y);
+  if (!h || h.g < 0.02) return;
+  const k = e.tr.kind, o = { g: h.g, p: h.p };
+  if (k === 'dog') snd.play(/sniff/i.test(txt) ? 'sniff' : 'bark', { ...o, pitch: 1 / e.tr.sz, n: /woof woof|arf arf/i.test(txt) ? 2 : 1 });
+  else if (k === 'cat') snd.play(/purr/i.test(txt) ? 'purr' : /hmph/i.test(txt) ? 'huff' : /mrrp/i.test(txt) ? 'mrrp' : 'meow', { ...o, pitch: 0.9 + 0.25 * hash01(e.seed + 5.1) });
+  else snd.play('murmur', { ...o, g: o.g * 0.8, f: voiceOf(e), n: clamp(Math.ceil(txt.length / 4), 2, 7) });
+}
+const FUMES = ['Ugh.', 'Seriously?', 'Come on.', 'This is ridiculous.', 'Oh, for goodness’ sake.', 'Hurry up.', 'I’ve had enough.'];
+let sndPool = [], sndPeople = [], sndPoolT = 0;
+function soundTick(dt, n, t) {
+  if (!snd.active) return;
+  if (!$('front').hidden) { snd.setCrowd(0); return; }
+  sndPoolT -= dt;
+  if (sndPoolT <= 0) { // who can be heard, refreshed a few times a second
+    sndPoolT = 0.3; sndPool.length = 0; sndPeople.length = 0;
+    let near = 0;
+    for (let i = 0; i < n; i++) {
+      const e = lbE[i];
+      if (e.walk || !e.pos) continue;
+      const y = lbY[i] + e.tr.lh * 0.85, h = hear(e, y);
+      if (!h || h.g < 0.03) continue;
+      const s = { e, y }; sndPool.push(s);
+      if (!e.tr.animal) sndPeople.push(s);
+      if (h.d < 16) near++;
+    }
+    snd.setCrowd(near);
+  }
+  if (!sndPeople.length) return;
+  const crowd = clamp(sndPeople.length / 8, 0.2, 1), roll = (rate) => Math.random() < rate * crowd * dt;
+  const someone = (ok) => { // a random person nearby, favouring the nearer of two picks
+    const l = ok ? sndPeople.filter((s) => ok(s.e)) : sndPeople;
+    if (!l.length) return null;
+    const a = l[Math.floor(Math.random() * l.length)], b = l[Math.floor(Math.random() * l.length)];
+    const ha = hear(a.e, a.y), hb = hear(b.e, b.y);
+    return ha && hb ? (ha.g >= hb.g ? { ...a, h: ha } : { ...b, h: hb }) : null;
+  };
+  const free = (e) => !(e.say && elapsed < e.say.until);
+  if (roll(0.7)) { const s = someone(free); if (s) snd.play('murmur', { g: s.h.g * 0.6, p: s.h.p, f: voiceOf(s.e), n: 2 + Math.floor(Math.random() * 3) }); } // quiet chatter
+  if (roll(0.1)) { // a tired sigh, more often from those who have stood a long time
+    const s = someone((e) => e.tr.kind === 'senior' || hash01(e.seed + 40) < 0.3 + 0.5 * waited(e));
+    if (s) { snd.play('sigh', { g: s.h.g, p: s.h.p, pitch: pitchOf(s.e) }); say(s.e, 'Hhhh.', 1.6); }
+  }
+  if (roll(0.05)) { const s = someone(); if (s) { snd.play('laugh', { g: s.h.g, p: s.h.p, pitch: pitchOf(s.e) }); say(s.e, 'Ha ha.', 1.5); } }
+  if (roll(0.022)) {
+    const s = someone();
+    if (s) { const L = snd.play('burp', { g: s.h.g, p: s.h.p, pitch: pitchOf(s.e) }); if (Math.random() < 0.5) say(s.e, 'Pardon me.', 1.8, L + 0.2); }
+  }
+  if (roll(0.028)) {
+    const s = someone();
+    if (s) {
+      const L = snd.play('sneeze', { g: s.h.g, p: s.h.p, pitch: pitchOf(s.e) });
+      say(s.e, 'Achoo.', 1.4, Math.max(0, L - 0.4));
+      const nb = sndPeople.find((q) => q.e !== s.e && Math.abs(q.e.pos - s.e.pos) === 1 && free(q.e));
+      if (nb && Math.random() < 0.55) say(nb.e, 'Bless you.', 1.6, L + 0.5);
+    }
+  }
+  if (roll(0.028)) {
+    const s = someone();
+    if (s) {
+      snd.play('fart', { g: s.h.g, p: s.h.p, pitch: pitchOf(s.e) });
+      if (Math.random() < 0.5) say(s.e, 'Sorry.', 1.6, 1.0);
+      const nb = sndPeople.find((q) => q.e !== s.e && Math.abs(q.e.pos - s.e.pos) === 1 && free(q.e));
+      if (nb && Math.random() < 0.35) say(nb.e, 'Seriously?', 1.6, 1.8);
+    }
+  }
+  // fed up: some people, more of them the longer they have waited, get through a bout of grumbling every minute or so
+  for (const s of sndPeople) {
+    const e = s.e;
+    if (hash01(e.seed + 88) >= 0.06 + 0.3 * waited(e)) continue;
+    const P = 45 + 60 * hash01(e.seed + 89), u = t + hash01(e.seed + 90) * P * 3, c = u % P, cyc = Math.floor(u / P);
+    if (c > 7) continue;
+    const r = hash01(e.seed + cyc * 3.1), steps = [[0.2, 'tsk'], [1.7, 'huff'], [3.3, r < 0.5 ? 'groan' : 'argh'], [5.4, r < 0.5 ? 'shout' : 'stomp']];
+    for (let k = 0; k < steps.length; k++) {
+      const key = cyc * 10 + k;
+      if (c < steps[k][0] || (e._fu ?? -1) >= key) continue;
+      e._fu = key;
+      const h = hear(e, s.y);
+      if (!h) break;
+      snd.play(steps[k][1], { g: h.g * 1.6, p: h.p, pitch: pitchOf(e) });
+      if (steps[k][1] !== 'huff' && steps[k][1] !== 'stomp') say(e, FUMES[Math.floor(hash01(e.seed + key * 1.9) * FUMES.length)], 2.2);
+      break;
+    }
+  }
+}
+
 let lastT = 0, elapsed = 0;
 if (location.hash.startsWith('#debug')) window.__line = { get open() { return curtainAmt; }, get yaw() { return yaw; }, get pitch() { return pitch; }, get zoom() { return zoom; }, get focus() { return focusPos; }, get atFront() { return atFront; }, get walkers() { return [...entities.values()].filter((e) => e.walk).length; } };
 
@@ -1097,7 +1203,11 @@ function frame(now) {
   for (let i = 0; i < n; i++) {
     const e = lbE[i];
     if (e.walk || !e.pos) continue;
-    consider(e.x, lbY[i] + e.tr.lh + 0.05, e.z, speech(e.seed, e.tr.kind, t), e === you ? 'you' : '');
+    const base = speech(e.seed, e.tr.kind, t);
+    if (base && !e._sp) onSpeech(e, base.txt, lbY[i] + e.tr.lh * 0.85);
+    e._sp = !!base;
+    const sy = e.say && elapsed >= e.say.from && elapsed < e.say.until ? { txt: e.say.txt, a: Math.min(1, (elapsed - e.say.from) / 0.3, (e.say.until - elapsed) / 0.5) } : null;
+    consider(e.x, lbY[i] + e.tr.lh + 0.05, e.z, sy || base, e === you ? 'you' : '');
   }
   if (stage.visible) bouncers.forEach((b, i) => {
     const sp = curtainAmt > 0.6 && i === 0 ? { txt: SAY.next[Math.floor(t / 4) % SAY.next.length], a: 1 } : speech(9000 + i * 17, 'bouncer', t);
@@ -1116,6 +1226,7 @@ function frame(now) {
   }
   for (let j = nb; j < bubEls.length; j++) bubEls[j].style.display = 'none';
   updateFocusChip(lbE, n); updateRails();
+  soundTick(dt, n, t);
 
   applyTime(worldHour());
   streetUpdate(camera.position.x, camera.position.z, t);
