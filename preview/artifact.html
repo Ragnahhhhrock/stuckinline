@@ -56,6 +56,9 @@ button:active { transform: scale(0.97); }
 
 #elsewhere { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; background: #0b0d14f2; color: var(--quiet); }
 
+#scroll { position: fixed; right: 12px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 10px; z-index: 3; }
+#scroll button { width: 46px; height: 46px; min-height: 0; padding: 0; font-size: 16px; line-height: 1; background: #0b0d14aa; color: var(--ink); border: 1px solid #ffffff33; touch-action: none; user-select: none; -webkit-user-select: none; }
+
 
 :root { color-scheme: dark; }
 #bar { flex-wrap: wrap; justify-content: flex-end; }
@@ -71,7 +74,9 @@ button:active { transform: scale(0.97); }
   <div id="tally">joining the line&hellip;</div>
 </header>
 
-<div id="hint">Drag to look around &middot; two fingers to zoom and slide along the line</div>
+<div id="hint">Drag to look around &middot; arrows or scroll to walk the line &middot; pinch to zoom</div>
+
+<div id="scroll" aria-label="Scroll along the line"><button id="up" type="button" aria-label="Towards the front">&#9650;</button><button id="down" type="button" aria-label="Towards the back">&#9660;</button></div>
 
 <div id="whisper" aria-live="polite"></div>
 
@@ -585,7 +590,7 @@ function startWalk(id) { const e = entities.get(id); if (e) e.walk = { t: 0 }; }
 
 // ---------- camera rig + gestures ----------
 // One finger (or left drag) orbits. Two fingers pinch to zoom and slide along the line. On a desktop:
-// wheel zooms, right drag or shift+drag slides.
+// the wheel (or arrow keys, or the on-screen arrows) scrolls along the line; ctrl+wheel zooms; right drag or shift+drag also slides.
 const DEFAULT_PITCH = 0.5;
 let yaw = 0, pitch = DEFAULT_PITCH, zoom = 1;
 let panOffset = 0, panFront = 0, atFront = false, focusPos = 1;
@@ -642,9 +647,21 @@ canvas.addEventListener('pointerup', endPtr);
 canvas.addEventListener('pointercancel', endPtr);
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault(); hideHint();
-  if (e.shiftKey) slide(Math.sign(e.deltaY) * 0.6);
-  else zoom = clamp(zoom * (1 + Math.sign(e.deltaY) * 0.1), 0.35, 2.6);
+  if (e.ctrlKey || e.metaKey) zoom = clamp(zoom * Math.exp(e.deltaY * 0.01), 0.35, 2.6); // pinch on a trackpad, or ctrl+wheel
+  else slide(clamp(e.deltaY, -120, 120) * 0.012 * Math.max(0.6, zoom)); // scroll down = towards the back of the line, up = towards the front
 }, { passive: false });
+addEventListener('keydown', (e) => {
+  if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+  const k = e.key === 'ArrowUp' || e.key === 'PageUp' ? -1 : e.key === 'ArrowDown' || e.key === 'PageDown' ? 1 : 0;
+  if (k) { e.preventDefault(); hideHint(); slide(k * (e.key.startsWith('Page') ? 8 : 1.5)); }
+});
+// on-screen arrows (hold to keep scrolling): up = towards the front, down = towards the back
+for (const [id, dir] of [['up', -1], ['down', 1]]) {
+  const b = $(id); let iv = 0;
+  const stop = () => { clearInterval(iv); iv = 0; };
+  b.addEventListener('pointerdown', (e) => { e.preventDefault(); hideHint(); slide(dir * 1.2); stop(); iv = setInterval(() => slide(dir * 0.4), 50); });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, stop);
+}
 $('find').addEventListener('click', resetView);
 $('tofront').addEventListener('click', () => {
   if (atFront) { resetView(); return; }

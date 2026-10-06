@@ -482,7 +482,7 @@ function startWalk(id) { const e = entities.get(id); if (e) e.walk = { t: 0 }; }
 
 // ---------- camera rig + gestures ----------
 // One finger (or left drag) orbits. Two fingers pinch to zoom and slide along the line. On a desktop:
-// wheel zooms, right drag or shift+drag slides.
+// the wheel (or arrow keys, or the on-screen arrows) scrolls along the line; ctrl+wheel zooms; right drag or shift+drag also slides.
 const DEFAULT_PITCH = 0.5;
 let yaw = 0, pitch = DEFAULT_PITCH, zoom = 1;
 let panOffset = 0, panFront = 0, atFront = false, focusPos = 1;
@@ -539,9 +539,21 @@ canvas.addEventListener('pointerup', endPtr);
 canvas.addEventListener('pointercancel', endPtr);
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault(); hideHint();
-  if (e.shiftKey) slide(Math.sign(e.deltaY) * 0.6);
-  else zoom = clamp(zoom * (1 + Math.sign(e.deltaY) * 0.1), 0.35, 2.6);
+  if (e.ctrlKey || e.metaKey) zoom = clamp(zoom * Math.exp(e.deltaY * 0.01), 0.35, 2.6); // pinch on a trackpad, or ctrl+wheel
+  else slide(clamp(e.deltaY, -120, 120) * 0.012 * Math.max(0.6, zoom)); // scroll down = towards the back of the line, up = towards the front
 }, { passive: false });
+addEventListener('keydown', (e) => {
+  if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+  const k = e.key === 'ArrowUp' || e.key === 'PageUp' ? -1 : e.key === 'ArrowDown' || e.key === 'PageDown' ? 1 : 0;
+  if (k) { e.preventDefault(); hideHint(); slide(k * (e.key.startsWith('Page') ? 8 : 1.5)); }
+});
+// on-screen arrows (hold to keep scrolling): up = towards the front, down = towards the back
+for (const [id, dir] of [['up', -1], ['down', 1]]) {
+  const b = $(id); let iv = 0;
+  const stop = () => { clearInterval(iv); iv = 0; };
+  b.addEventListener('pointerdown', (e) => { e.preventDefault(); hideHint(); slide(dir * 1.2); stop(); iv = setInterval(() => slide(dir * 0.4), 50); });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, stop);
+}
 $('find').addEventListener('click', resetView);
 $('tofront').addEventListener('click', () => {
   if (atFront) { resetView(); return; }
