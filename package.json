@@ -1,10 +1,13 @@
 {
-  "name": "the-line",
+  "name": "stuck-in-line",
   "version": "0.1.0",
   "description": "A browser game about waiting in a line. MVP: shared queue, NPCs, Three.js portrait client.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "brand:build": "python3 scripts/build-brand-assets.py",
+    "brand:check": "node scripts/brand-check.js",
+    "pretest": "node scripts/brand-check.js",
     "test": "node test/sim.js"
   },
   "dependencies": {

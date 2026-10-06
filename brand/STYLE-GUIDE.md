@@ -1,0 +1,58 @@
+# Stuck in Line: Style Guide (voice and copy)
+
+Binding under [BRAND-RULE.md](BRAND-RULE.md). Visual rules live in [DESIGN-GUIDE.md](DESIGN-GUIDE.md).
+
+## Names
+
+- Product name: **Stuck in Line** (three words, capital S and L, "in" lowercase). Domain: **stuckinline.com**, always lowercase, always written in full when linked.
+- Never "The Line", "StuckInLine", "Stuck In Line" or "STUCK IN LINE" in running copy. All caps is allowed only in the small tracked wordmark label in graphics.
+- "The line" (lowercase) is the in-world queue. "You" are in it.
+
+## Voice
+
+Dry, deadpan, patient. Like a stranger next to you in a queue who knows slightly more than they let on.
+
+1. **Short.** Most lines are under 10 words. Cut adjectives.
+2. **Curious, never hype.** We invite; we do not shout. No exclamation marks, no "amazing", "epic", "addictive", "revolutionary".
+3. **Questions over claims.** The brand question is: *What's your place in the line?*
+4. **Never explain the stage.** Nobody knows what is at the front, including us. Do not hint, joke about, or confirm what it is.
+5. **Warm, not cute.** Gentle absurdity, no emoji in product copy, no memes, no slang that dates.
+6. Second person, present tense: "You are #412." "Close the tab and you lose your place."
+
+## Core lines (use verbatim)
+
+| Role | Copy |
+| --- | --- |
+| Brand question | What's your place in the line? |
+| Tagline | A game about waiting. |
+| Support line | Nobody knows what's at the front. |
+| Call to action | Join the back of the line |
+| Short description (meta) | A game about waiting. One global queue, slowly moving. Join the back of the line and see how far you get. Nobody knows what's at the front. |
+| Handle/URL | stuckinline.com |
+
+## Do and don't
+
+| Do | Don't |
+| --- | --- |
+| "Join the back of the line." | "Play now!!!" |
+| "Nobody knows what's at the front." | "Win amazing prizes at the front!" |
+| "Your place is open in another tab." | "Oops! Something went wrong." |
+| "Leave one line for whoever is behind you." | "Share your thoughts with the community!" |
+
+## Grammar and mechanics
+
+- Sentence case for headlines and buttons. Full stops on statements, question marks on questions.
+- Curly quotes for whispers; straight apostrophes are fine in headlines baked into images.
+- Numbers for places use a hash and tabular numerals: `#412`. Unknown place: `#?`.
+- Dates in copy: 6 October 2026 (Australian English). Spelling: Australian English (colour, queue, organise).
+- Alt text describes the scene plainly: "A dark street at night. A single-file queue of people leads to a glowing theatre curtain. A figure in front looks back at you."
+
+## Social copy patterns
+
+- Caption for the 4:5 teaser: `What's your place in the line? stuckinline.com`. Nothing more. Hashtags, if any, at most two, after a blank line: `#stuckinline #queue`.
+- Replies and community: calm, brief, never argue, never reveal the front.
+- Never promise rewards, rankings, money, or what happens at the front.
+
+## Things we never say or show
+
+Prizes, winners, "what's behind the curtain", countdown hype, real brands or people in the line, real-world queues (airports, shops, events), anything implying a wait costs money before payments have legal sign-off.

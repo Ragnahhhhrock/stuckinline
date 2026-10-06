@@ -1,0 +1,2 @@
+#!/bin/sh
+node scripts/brand-check.js || { echo "Commit blocked: the Brand Rule (brand/BRAND-RULE.md) cannot be violated."; exit 1; }
