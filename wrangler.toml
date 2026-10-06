@@ -29,6 +29,6 @@ class_name = "LineRoom"
 tag = "v1"
 new_sqlite_classes = ["LineRoom"]
 
-# Optional game settings: TICK_MS (60000), INITIAL_NPCS (800), NPC_FADE_PLAYERS (50), GRACE_MS (30000), MAX_PLAYERS (5000)
+# Optional game settings: TICK_MS (60000), INITIAL_NPCS (200), NPC_FADE_PLAYERS (50), GRACE_MS (30000), MAX_PLAYERS (5000)
 # [vars]
 # TICK_MS = "60000"

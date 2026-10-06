@@ -33,7 +33,7 @@ function createGame(opts = {}) {
   const TICK_MS = num('TICK_MS', 60000); // one person passes through the curtains each minute
   const GRACE_MS = num('GRACE_MS', 30000); // reload/blip grace before a free player loses their place
   const HB_TIMEOUT_MS = num('HB_TIMEOUT_MS', 45000);
-  const INITIAL_NPCS = num('INITIAL_NPCS', 800);
+  const INITIAL_NPCS = num('INITIAL_NPCS', 200);
   const NPC_FADE_PLAYERS = num('NPC_FADE_PLAYERS', 50); // NPC joins fade out as real players approach this
   const MAX_PLAYERS = num('MAX_PLAYERS', 5000);
   // Player whispers are collected but only shown to others when explicitly enabled (needs moderation first).

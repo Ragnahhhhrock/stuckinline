@@ -21,7 +21,7 @@ The old Railway CNAME was removed; the leftover `_railway-verify` TXT record is 
     npm run deploy        # build dist/ and deploy by hand (needs the two env vars above)
 
 ## Settings
-Optional `[vars]` in `wrangler.toml`: TICK_MS (60000), INITIAL_NPCS (800), NPC_FADE_PLAYERS (50), GRACE_MS (30000), MAX_PLAYERS (5000).
+Optional `[vars]` in `wrangler.toml`: TICK_MS (60000), INITIAL_NPCS (200), NPC_FADE_PLAYERS (50), GRACE_MS (30000), MAX_PLAYERS (5000).
 
 ## Other hosts
 `Dockerfile` still runs the Node host (any container host, including Railway). It must be a single always-on instance.
