@@ -827,6 +827,26 @@ function labelEl(i) {
   if (!labelEls[i]) { const d = document.createElement('div'); d.className = 'lbl'; labelsEl.appendChild(d); labelEls[i] = d; }
   return labelEls[i];
 }
+// what people say while they wait; each person speaks for a few seconds every 15-30s, on a rhythm and with lines drawn from their seed
+const SAY = {
+  adult: ['Is this the line?', 'How long now?', 'Has it moved?', 'My feet are killing me.', 'Anyone know what’s in there?', 'Worth it, surely.', 'Just one more minute…', 'I’ve been here ages.', 'Typical.', 'Don’t push!', 'I hope it’s good.', 'Is anyone even at the front?'],
+  child: ['Are we there yet?', 'I’m bored!', 'Can I have a snack?', 'How much longer?', 'Why is it so slow?', 'I need the toilet.', 'Look, a doggy!', 'Carry me!'],
+  senior: ['In my day this took a minute.', 'Is it moving?', 'What’s at the front?', 'Hmm? Speak up.', 'I’ve queued for less.', 'Mind my stick.', 'Wake me when it’s my turn.', 'Back in ’62 we knew what we were queueing for.'],
+  dog: ['Woof!', 'Arf arf!', 'Sniff sniff…', 'Woof woof!', 'Walkies?', 'Bork!'],
+  cat: ['Meow.', 'Mrrp?', 'Purr…', 'Hmph.', 'Mew!', 'Mrow.'],
+  bouncer: ['Wait your turn.', 'Nobody skips.', 'Move along, please.', 'Keep it moving.', 'Behind the rope, sir.', 'Not yet.'],
+  next: ['Next!', 'In you go.', 'Mind the step.'],
+};
+function speech(seed, kind, t) {
+  const pool = SAY[kind], P = 15 + 15 * hash01(seed + 3.3), u = t + hash01(seed + 4.4) * P * 3, c = u % P, DUR = 4.4;
+  if (!pool || c > DUR) return null;
+  return { txt: pool[Math.floor(hash01(seed + Math.floor(u / P) * 1.7) * pool.length)], a: Math.min(1, c / 0.3, (DUR - c) / 0.6) };
+}
+const bubblesEl = $('bubbles'), bubEls = [], cands = [];
+function bubEl(i) {
+  if (!bubEls[i]) { const d = document.createElement('div'); d.className = 'bub'; bubblesEl.appendChild(d); bubEls[i] = d; }
+  return bubEls[i];
+}
 let lastT = 0, elapsed = 0;
 if (location.hash.startsWith('#debug')) window.__line = { get open() { return curtainAmt; }, get yaw() { return yaw; }, get pitch() { return pitch; }, get zoom() { return zoom; }, get focus() { return focusPos; }, get atFront() { return atFront; }, get walkers() { return [...entities.values()].filter((e) => e.walk).length; } };
 
@@ -991,6 +1011,39 @@ function frame(now) {
     el.style.transform = `translate(${((v3.x * 0.5 + 0.5) * W).toFixed(1)}px, ${((-v3.y * 0.5 + 0.5) * Hh).toFixed(1)}px) translate(-50%, -100%) scale(${sc.toFixed(2)})`;
   }
   for (let j = li; j < labelEls.length; j++) labelEls[j].style.display = 'none';
+
+  // speech bubbles: everyone chats now and then; only the few nearest speakers on screen are drawn
+  cands.length = 0;
+  const consider = (wx, wy, wz, sp, cls) => {
+    if (!sp) return;
+    v3.set(wx, wy, wz);
+    const dist = camera.position.distanceTo(v3);
+    if (dist > 26 || (v3.x - camera.position.x) * fwd.x + (v3.y - camera.position.y) * fwd.y + (v3.z - camera.position.z) * fwd.z < 0.3) return;
+    v3.project(camera);
+    if (v3.x < -1 || v3.x > 1 || v3.y < -1 || v3.y > 1) return;
+    cands.push({ sx: (v3.x * 0.5 + 0.5) * W, sy: (-v3.y * 0.5 + 0.5) * Hh, dist: cls === 'you' ? dist - 6 : dist, d0: dist, txt: sp.txt, a: sp.a, cls });
+  };
+  for (let i = 0; i < n; i++) {
+    const e = lbE[i];
+    if (e.walk || !e.pos) continue;
+    consider(e.x, lbY[i] + e.tr.lh + 0.05, e.z, speech(e.seed, e.tr.kind, t), e === you ? 'you' : '');
+  }
+  if (stage.visible) bouncers.forEach((b, i) => {
+    const sp = curtainAmt > 0.6 && i === 0 ? { txt: SAY.next[Math.floor(t / 4) % SAY.next.length], a: 1 } : speech(9000 + i * 17, 'bouncer', t);
+    consider(b.position.x, FLOOR + 2.55, b.position.z, sp, 'staff');
+  });
+  cands.sort((a, b) => a.dist - b.dist);
+  const nb = Math.min(cands.length, 5);
+  for (let j = 0; j < nb; j++) {
+    const c = cands[j], el = bubEl(j), sc = c.cls === 'you' ? 1.1 : clamp(17 / c.d0, 0.7, 1.1);
+    if (el._t !== c.txt) { el.textContent = c.txt; el._t = c.txt; }
+    if (el._c !== c.cls) { el.className = `bub ${c.cls}`; el._c = c.cls; }
+    el.style.display = 'block';
+    el.style.opacity = c.a.toFixed(2);
+    el.style.zIndex = String(3000 - Math.round(c.d0 * 10));
+    el.style.transform = `translate(${c.sx.toFixed(1)}px, ${(c.sy - 26 * sc).toFixed(1)}px) translate(-50%, -100%) scale(${sc.toFixed(2)})`;
+  }
+  for (let j = nb; j < bubEls.length; j++) bubEls[j].style.display = 'none';
   updateFocusChip(lbE, n); updateRails();
 
   applyTime(worldHour());

@@ -26,6 +26,17 @@ body { background: #141623; }
   color: #f1eee3; background: #0b0d14b8; will-change: transform, opacity; }
 .lbl.you { background: var(--accent); color: #14110a; }
 
+/* speech bubbles: pinned above heads like the place numbers, a few at a time */
+#bubbles { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }
+.bub { position: absolute; left: 0; top: 0; display: none; max-width: 150px; padding: 5px 10px; border-radius: 12px; transform-origin: 50% 100%;
+  font: 600 12px/1.3 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; text-align: center;
+  color: #14110a; background: #f4f1e8; box-shadow: 0 2px 10px #0008; will-change: transform, opacity; }
+.bub::after { content: ""; position: absolute; left: 50%; bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: #f4f1e8; }
+.bub.you { background: var(--accent); }
+.bub.you::after { border-top-color: var(--accent); }
+.bub.staff { background: #1c1c26; color: #f1eee3; border: 1px solid #ffffff33; }
+.bub.staff::after { border-top-color: #1c1c26; }
+
 /* Portrait phone first; desktop gets the same layout, centred */
 #hud { position: fixed; top: calc(12px + var(--safe-t)); left: 0; right: 0; text-align: center; pointer-events: none; text-shadow: 0 1px 12px #000a; }
 #pos { font-size: clamp(40px, 12vw, 64px); font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.05; }
@@ -105,6 +116,7 @@ button:active { transform: scale(0.97); }
 
 <canvas id="c"></canvas>
 <div id="labels" aria-hidden="true"></div>
+<div id="bubbles" aria-hidden="true"></div>
 
 <header id="hud">
   <div id="pos">#&ndash;</div>
@@ -993,6 +1005,26 @@ function labelEl(i) {
   if (!labelEls[i]) { const d = document.createElement('div'); d.className = 'lbl'; labelsEl.appendChild(d); labelEls[i] = d; }
   return labelEls[i];
 }
+// what people say while they wait; each person speaks for a few seconds every 15-30s, on a rhythm and with lines drawn from their seed
+const SAY = {
+  adult: ['Is this the line?', 'How long now?', 'Has it moved?', 'My feet are killing me.', 'Anyone know what’s in there?', 'Worth it, surely.', 'Just one more minute…', 'I’ve been here ages.', 'Typical.', 'Don’t push!', 'I hope it’s good.', 'Is anyone even at the front?'],
+  child: ['Are we there yet?', 'I’m bored!', 'Can I have a snack?', 'How much longer?', 'Why is it so slow?', 'I need the toilet.', 'Look, a doggy!', 'Carry me!'],
+  senior: ['In my day this took a minute.', 'Is it moving?', 'What’s at the front?', 'Hmm? Speak up.', 'I’ve queued for less.', 'Mind my stick.', 'Wake me when it’s my turn.', 'Back in ’62 we knew what we were queueing for.'],
+  dog: ['Woof!', 'Arf arf!', 'Sniff sniff…', 'Woof woof!', 'Walkies?', 'Bork!'],
+  cat: ['Meow.', 'Mrrp?', 'Purr…', 'Hmph.', 'Mew!', 'Mrow.'],
+  bouncer: ['Wait your turn.', 'Nobody skips.', 'Move along, please.', 'Keep it moving.', 'Behind the rope, sir.', 'Not yet.'],
+  next: ['Next!', 'In you go.', 'Mind the step.'],
+};
+function speech(seed, kind, t) {
+  const pool = SAY[kind], P = 15 + 15 * hash01(seed + 3.3), u = t + hash01(seed + 4.4) * P * 3, c = u % P, DUR = 4.4;
+  if (!pool || c > DUR) return null;
+  return { txt: pool[Math.floor(hash01(seed + Math.floor(u / P) * 1.7) * pool.length)], a: Math.min(1, c / 0.3, (DUR - c) / 0.6) };
+}
+const bubblesEl = $('bubbles'), bubEls = [], cands = [];
+function bubEl(i) {
+  if (!bubEls[i]) { const d = document.createElement('div'); d.className = 'bub'; bubblesEl.appendChild(d); bubEls[i] = d; }
+  return bubEls[i];
+}
 let lastT = 0, elapsed = 0;
 if (location.hash.startsWith('#debug')) window.__line = { get open() { return curtainAmt; }, get yaw() { return yaw; }, get pitch() { return pitch; }, get zoom() { return zoom; }, get focus() { return focusPos; }, get atFront() { return atFront; }, get walkers() { return [...entities.values()].filter((e) => e.walk).length; } };
 
@@ -1157,6 +1189,39 @@ function frame(now) {
     el.style.transform = `translate(${((v3.x * 0.5 + 0.5) * W).toFixed(1)}px, ${((-v3.y * 0.5 + 0.5) * Hh).toFixed(1)}px) translate(-50%, -100%) scale(${sc.toFixed(2)})`;
   }
   for (let j = li; j < labelEls.length; j++) labelEls[j].style.display = 'none';
+
+  // speech bubbles: everyone chats now and then; only the few nearest speakers on screen are drawn
+  cands.length = 0;
+  const consider = (wx, wy, wz, sp, cls) => {
+    if (!sp) return;
+    v3.set(wx, wy, wz);
+    const dist = camera.position.distanceTo(v3);
+    if (dist > 26 || (v3.x - camera.position.x) * fwd.x + (v3.y - camera.position.y) * fwd.y + (v3.z - camera.position.z) * fwd.z < 0.3) return;
+    v3.project(camera);
+    if (v3.x < -1 || v3.x > 1 || v3.y < -1 || v3.y > 1) return;
+    cands.push({ sx: (v3.x * 0.5 + 0.5) * W, sy: (-v3.y * 0.5 + 0.5) * Hh, dist: cls === 'you' ? dist - 6 : dist, d0: dist, txt: sp.txt, a: sp.a, cls });
+  };
+  for (let i = 0; i < n; i++) {
+    const e = lbE[i];
+    if (e.walk || !e.pos) continue;
+    consider(e.x, lbY[i] + e.tr.lh + 0.05, e.z, speech(e.seed, e.tr.kind, t), e === you ? 'you' : '');
+  }
+  if (stage.visible) bouncers.forEach((b, i) => {
+    const sp = curtainAmt > 0.6 && i === 0 ? { txt: SAY.next[Math.floor(t / 4) % SAY.next.length], a: 1 } : speech(9000 + i * 17, 'bouncer', t);
+    consider(b.position.x, FLOOR + 2.55, b.position.z, sp, 'staff');
+  });
+  cands.sort((a, b) => a.dist - b.dist);
+  const nb = Math.min(cands.length, 5);
+  for (let j = 0; j < nb; j++) {
+    const c = cands[j], el = bubEl(j), sc = c.cls === 'you' ? 1.1 : clamp(17 / c.d0, 0.7, 1.1);
+    if (el._t !== c.txt) { el.textContent = c.txt; el._t = c.txt; }
+    if (el._c !== c.cls) { el.className = `bub ${c.cls}`; el._c = c.cls; }
+    el.style.display = 'block';
+    el.style.opacity = c.a.toFixed(2);
+    el.style.zIndex = String(3000 - Math.round(c.d0 * 10));
+    el.style.transform = `translate(${c.sx.toFixed(1)}px, ${(c.sy - 26 * sc).toFixed(1)}px) translate(-50%, -100%) scale(${sc.toFixed(2)})`;
+  }
+  for (let j = nb; j < bubEls.length; j++) bubEls[j].style.display = 'none';
   updateFocusChip(lbE, n); updateRails();
 
   applyTime(worldHour());
