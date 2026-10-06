@@ -8,7 +8,7 @@
     "brand:build": "python3 scripts/build-brand-assets.py",
     "brand:check": "node scripts/brand-check.js",
     "pretest": "node scripts/brand-check.js",
-    "test": "node test/sim.js",
+    "test": "node test/sim.js && node test/skip.js",
     "build:worker": "node scripts/build-worker-assets.js",
     "deploy": "npm run build:worker && wrangler deploy",
     "dev:worker": "npm run build:worker && wrangler dev"

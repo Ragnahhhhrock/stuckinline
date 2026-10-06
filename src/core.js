@@ -75,6 +75,43 @@ function createGame(opts = {}) {
     p.canWhisper = false;
   }
 
+  // The paid skip: one confirmed payment moves one player to the very front (index 0, next through the curtains).
+  const pendingSkips = new Set(); // paid, but that player is not connected right now; applied when they next join
+  const paidSessions = new Set(); // payment ids already applied, so a retried webhook never skips twice
+  function moveToFront(p) {
+    if (p.entry && p.entry.inLine) {
+      if (line[0] === p.entry) return;
+      removeEntry(p.entry);
+      p.entry.inLine = true;
+      line.unshift(p.entry);
+      return;
+    }
+    const e = newEntry('player');
+    e.token = p.token;
+    e.inLine = true;
+    line.unshift(e);
+    p.entry = e;
+    p.canWhisper = false;
+  }
+  function skipToFront(rawToken, sessionId) {
+    const token = String(rawToken || '').replace(/[^\w-]/g, '').slice(0, 64);
+    if (token.length < 8) return 'invalid';
+    const sid = String(sessionId || '');
+    if (sid) {
+      if (paidSessions.has(sid)) return 'duplicate';
+      paidSessions.add(sid);
+      if (paidSessions.size > 5000) paidSessions.delete(paidSessions.values().next().value);
+    }
+    const p = players.get(token);
+    if (!p) {
+      pendingSkips.add(token);
+      if (pendingSkips.size > 5000) pendingSkips.delete(pendingSkips.values().next().value);
+      return 'pending';
+    }
+    moveToFront(p);
+    return 'moved';
+  }
+
   function realInLine() {
     let n = 0;
     for (const p of players.values()) if (p.entry && p.entry.inLine) n++;
@@ -197,6 +234,7 @@ function createGame(opts = {}) {
           if (p.ws && p.ws !== ws) p.ws.close(4000, 'replaced'); // second tab takes over
           p.ws = ws; p.lastSeen = now; p.awaySince = null; p.disconnectedAt = null;
           if (!p.entry || !p.entry.inLine) placeAtBack(p); // free players who lost their place start at the back
+          if (pendingSkips.delete(token)) moveToFront(p); // paid while away: the coffee still counts
           player = p;
           send(p, { t: 'joined', token, graceMs: GRACE_MS });
           return;
@@ -222,7 +260,7 @@ function createGame(opts = {}) {
     };
   };
 
-  return { connect, size: () => line.length };
+  return { connect, size: () => line.length, skipToFront };
 }
 
 module.exports = { createGame, RUMOURS };

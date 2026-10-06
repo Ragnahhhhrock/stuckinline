@@ -25,3 +25,11 @@ Optional `[vars]` in `wrangler.toml`: TICK_MS (60000), INITIAL_NPCS (200), NPC_F
 
 ## Other hosts
 `Dockerfile` still runs the Node host (any container host, including Railway). It must be a single always-on instance.
+
+## Paid skip (Stripe)
+A confirmed payment moves the paying player to the front of the line.
+1. The home screen button opens the Stripe payment link with `?client_reference_id=<player token>` added in `public/main.js`.
+2. In Stripe, Developers, Webhooks, add the endpoint `https://stuckinline.com/stripe-webhook` for the events `checkout.session.completed` and `checkout.session.async_payment_succeeded`.
+3. Copy that endpoint's signing secret (starts with `whsec_`) and store it on the Worker: `npx wrangler secret put STRIPE_WEBHOOK_SECRET` (or Cloudflare, Workers, stuckinline, Settings, Variables and Secrets). Never commit it.
+4. In the payment link settings, set "After payment" to redirect to `https://stuckinline.com/`.
+`worker/index.js` checks the Stripe signature, requires a paid AUD amount of at least A$5 (`SKIP_MIN_CENTS`), then calls `skipToFront` in `src/core.js`. Retried webhooks never skip twice. A payment made while the player is disconnected is applied when that token next joins. The state lives in the Durable Object's memory like the rest of the line.

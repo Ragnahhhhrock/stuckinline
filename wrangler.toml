@@ -19,7 +19,7 @@ directory = "dist"
 binding = "ASSETS"
 not_found_handling = "none"
 # /ws is handled by the Worker; everything else is served straight from the assets.
-run_worker_first = ["/ws", "/healthz"]
+run_worker_first = ["/ws", "/healthz", "/stripe-webhook"]
 
 [[durable_objects.bindings]]
 name = "LINE"
@@ -30,5 +30,7 @@ tag = "v1"
 new_sqlite_classes = ["LineRoom"]
 
 # Optional game settings: TICK_MS (60000), INITIAL_NPCS (200), NPC_FADE_PLAYERS (50), GRACE_MS (30000), MAX_PLAYERS (5000)
+# Secret (set with `npx wrangler secret put STRIPE_WEBHOOK_SECRET`, never committed): the Stripe webhook signing secret.
+# Optional: SKIP_MIN_CENTS (500) = smallest paid amount, in AUD cents, that counts as a paid skip.
 # [vars]
 # TICK_MS = "60000"

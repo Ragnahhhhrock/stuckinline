@@ -1272,6 +1272,10 @@ if (!token) {
   token = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36)).replace(/[^\w-]/g, '');
   try { localStorage.setItem('line-token', token); } catch {}
 }
+{ // the paid skip: tell Stripe which player is paying, so the confirmed payment can move this player to the front
+  const coffee = $('coffee');
+  if (coffee) coffee.href = coffee.href.split('?')[0] + '?client_reference_id=' + encodeURIComponent(token);
+}
 
 let ws = null, retry = 0, hb = 0, replaced = false;
 function setStatus(s) { $('status').textContent = s; }
