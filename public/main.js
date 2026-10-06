@@ -917,7 +917,19 @@ function hear(e, y) { // how loud and where, for someone at (e, y) as heard from
   const m = camera.matrixWorld.elements, side = (hearRel.x * m[0] + hearRel.y * m[1] + hearRel.z * m[2]) / Math.max(d, 1);
   return { g: Math.pow(clamp(7 / (d + 4), 0, 1), 1.5) * (1 - d / 36), p: clamp(side * 1.3, -1, 1), d };
 }
-function say(e, txt, dur, delay = 0) { e.say = { txt, from: elapsed + delay, until: elapsed + delay + dur }; } // a bubble outside the usual rhythm
+function say(e, txt, dur, delay = 0, speakP = 0) { // a bubble outside the usual rhythm; speakP is the chance it is also spoken aloud
+  e.say = { txt, from: elapsed + delay, until: elapsed + delay + dur };
+  speakLater(e, txt, delay, speakP);
+}
+function speakLater(e, txt, delay, p) { // some lines are spoken in the browser's voice; the rest stay as text
+  if (!p || e.tr.animal || Math.random() >= p) return;
+  setTimeout(() => {
+    const h = hear(e, e.tr.lh * 0.85);
+    if (!h || h.g < 0.06) return;
+    const r = (k) => hash01(e.seed + k * 3.7), kid = e.tr.kind === 'child', old = e.tr.kind === 'senior';
+    snd.speak(txt, { g: clamp(h.g * 2.2, 0.1, 1), voice: Math.floor(r(1) * 1000), pitch: kid ? 1.7 : old ? 0.8 : 0.6 + 0.8 * r(2), rate: (old ? 0.8 : 0.92) + 0.2 * r(3) });
+  }, Math.max(0, delay) * 1000 + 60);
+}
 const voiceOf = (e) => (e.tr.kind === 'child' ? 300 + 60 * hash01(e.seed + 2.2) : (100 + 120 * hash01(e.seed + 2.2)) * (e.tr.kind === 'senior' ? 0.92 : 1));
 const pitchOf = (e) => voiceOf(e) / 150;
 const waited = (e) => clamp(1 - e.pos / Math.max(state.total, 1), 0, 1); // the nearer the front, the longer they have stood here
@@ -927,17 +939,16 @@ function onSpeech(e, txt, y) { // a speech bubble has just opened: make the matc
   const k = e.tr.kind, o = { g: h.g, p: h.p };
   if (k === 'dog') snd.play(/sniff/i.test(txt) ? 'sniff' : 'bark', { ...o, pitch: 1 / e.tr.sz, n: /woof woof|arf arf/i.test(txt) ? 2 : 1 });
   else if (k === 'cat') snd.play(/purr/i.test(txt) ? 'purr' : /hmph/i.test(txt) ? 'huff' : /mrrp/i.test(txt) ? 'mrrp' : 'meow', { ...o, pitch: 0.9 + 0.25 * hash01(e.seed + 5.1) });
-  else snd.play('murmur', { ...o, g: o.g * 0.8, f: voiceOf(e), n: clamp(Math.ceil(txt.length / 4), 2, 7) });
+  else speakLater(e, txt, 0, 0.35);
 }
 const FUMES = ['Ugh.', 'Seriously?', 'Come on.', 'This is ridiculous.', 'Oh, for goodness’ sake.', 'Hurry up.', 'I’ve had enough.'];
 let sndPool = [], sndPeople = [], sndPoolT = 0;
 function soundTick(dt, n, t) {
   if (!snd.active) return;
-  if (!$('front').hidden) { snd.setCrowd(0); return; }
+  if (!$('front').hidden) return;
   sndPoolT -= dt;
   if (sndPoolT <= 0) { // who can be heard, refreshed a few times a second
     sndPoolT = 0.3; sndPool.length = 0; sndPeople.length = 0;
-    let near = 0;
     for (let i = 0; i < n; i++) {
       const e = lbE[i];
       if (e.walk || !e.pos) continue;
@@ -945,9 +956,7 @@ function soundTick(dt, n, t) {
       if (!h || h.g < 0.03) continue;
       const s = { e, y }; sndPool.push(s);
       if (!e.tr.animal) sndPeople.push(s);
-      if (h.d < 16) near++;
     }
-    snd.setCrowd(near);
   }
   if (!sndPeople.length) return;
   const crowd = clamp(sndPeople.length / 8, 0.2, 1), roll = (rate) => Math.random() < rate * crowd * dt;
@@ -959,7 +968,6 @@ function soundTick(dt, n, t) {
     return ha && hb ? (ha.g >= hb.g ? { ...a, h: ha } : { ...b, h: hb }) : null;
   };
   const free = (e) => !(e.say && elapsed < e.say.until);
-  if (roll(0.7)) { const s = someone(free); if (s) snd.play('murmur', { g: s.h.g * 0.6, p: s.h.p, f: voiceOf(s.e), n: 2 + Math.floor(Math.random() * 3) }); } // quiet chatter
   if (roll(0.1)) { // a tired sigh, more often from those who have stood a long time
     const s = someone((e) => e.tr.kind === 'senior' || hash01(e.seed + 40) < 0.3 + 0.5 * waited(e));
     if (s) { snd.play('sigh', { g: s.h.g, p: s.h.p, pitch: pitchOf(s.e) }); say(s.e, 'Hhhh.', 1.6); }
@@ -967,7 +975,7 @@ function soundTick(dt, n, t) {
   if (roll(0.05)) { const s = someone(); if (s) { snd.play('laugh', { g: s.h.g, p: s.h.p, pitch: pitchOf(s.e) }); say(s.e, 'Ha ha.', 1.5); } }
   if (roll(0.022)) {
     const s = someone();
-    if (s) { const L = snd.play('burp', { g: s.h.g, p: s.h.p, pitch: pitchOf(s.e) }); if (Math.random() < 0.5) say(s.e, 'Pardon me.', 1.8, L + 0.2); }
+    if (s) { const L = snd.play('burp', { g: s.h.g, p: s.h.p, pitch: pitchOf(s.e) }); if (Math.random() < 0.5) say(s.e, 'Pardon me.', 1.8, L + 0.2, 0.7); }
   }
   if (roll(0.028)) {
     const s = someone();
@@ -975,16 +983,16 @@ function soundTick(dt, n, t) {
       const L = snd.play('sneeze', { g: s.h.g, p: s.h.p, pitch: pitchOf(s.e) });
       say(s.e, 'Achoo.', 1.4, Math.max(0, L - 0.4));
       const nb = sndPeople.find((q) => q.e !== s.e && Math.abs(q.e.pos - s.e.pos) === 1 && free(q.e));
-      if (nb && Math.random() < 0.55) say(nb.e, 'Bless you.', 1.6, L + 0.5);
+      if (nb && Math.random() < 0.55) say(nb.e, 'Bless you.', 1.6, L + 0.5, 0.7);
     }
   }
   if (roll(0.028)) {
     const s = someone();
     if (s) {
       snd.play('fart', { g: s.h.g, p: s.h.p, pitch: pitchOf(s.e) });
-      if (Math.random() < 0.5) say(s.e, 'Sorry.', 1.6, 1.0);
+      if (Math.random() < 0.5) say(s.e, 'Sorry.', 1.6, 1.0, 0.6);
       const nb = sndPeople.find((q) => q.e !== s.e && Math.abs(q.e.pos - s.e.pos) === 1 && free(q.e));
-      if (nb && Math.random() < 0.35) say(nb.e, 'Seriously?', 1.6, 1.8);
+      if (nb && Math.random() < 0.35) say(nb.e, 'Seriously?', 1.6, 1.8, 0.7);
     }
   }
   // fed up: some people, more of them the longer they have waited, get through a bout of grumbling every minute or so
@@ -1001,7 +1009,7 @@ function soundTick(dt, n, t) {
       const h = hear(e, s.y);
       if (!h) break;
       snd.play(steps[k][1], { g: h.g * 1.6, p: h.p, pitch: pitchOf(e) });
-      if (steps[k][1] !== 'huff' && steps[k][1] !== 'stomp') say(e, FUMES[Math.floor(hash01(e.seed + key * 1.9) * FUMES.length)], 2.2);
+      if (steps[k][1] !== 'huff' && steps[k][1] !== 'stomp') say(e, FUMES[Math.floor(hash01(e.seed + key * 1.9) * FUMES.length)], 2.2, 0, 0.6);
       break;
     }
   }

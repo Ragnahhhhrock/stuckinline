@@ -5,7 +5,7 @@ const VOWEL = { a: [800, 1250], e: [530, 1900], i: [300, 2250], o: [500, 900], u
 
 export function createSound(opts = {}) {
   const Ctx = opts.AudioContext || (typeof window !== 'undefined' ? window.AudioContext || window.webkitAudioContext : null);
-  let ctx = null, master = null, noise = null, bed = null, voices = 0, muted = false;
+  let ctx = null, master = null, noise = null, voices = 0, muted = false;
   try { muted = localStorage.getItem('line-muted') === '1'; } catch {}
   const LEVEL = 0.9;
   const rnd = (a, b) => a + Math.random() * (b - a);
@@ -22,7 +22,6 @@ export function createSound(opts = {}) {
     const len = Math.floor(ctx.sampleRate * 2), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     noise = buf;
-    startBed();
     return ctx;
   }
 
@@ -95,31 +94,8 @@ export function createSound(opts = {}) {
     s.connect(e); e.connect(d); s.start(t0); s.stop(t1 + 0.05); voices++; s.onended = () => { voices--; };
   }
 
-  // ---------- the crowd: a low murmur bed that swells with how many people are near ----------
-  function startBed() {
-    const t0 = ctx.currentTime;
-    const src = ctx.createBufferSource(); src.buffer = noise; src.loop = true; src.start(t0);
-    const g = ctx.createGain(); g.gain.value = 0;
-    [[520, 0.8, 3.1], [1250, 1.2, 4.4], [2300, 1.6, 5.3]].forEach(([hz, q, wob]) => {
-      const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = hz; f.Q.value = q;
-      const m = ctx.createGain(); m.gain.value = 0.6;
-      lfo(m.gain, wob, 0.35, 'sine', t0, t0 + 1e6); // a soft, syllable-like wobble
-      src.connect(f); f.connect(m); m.connect(g);
-    });
-    g.connect(master);
-    bed = g;
-  }
-
   // ---------- the sounds. each takes ({ g: loudness, p: pan, pitch, ... }, destination) and returns its length in seconds ----------
   const lib = {
-    murmur(o, d) { // a few soft syllables of someone talking: o.f is their voice pitch
-      const n = o.n || 3, f = (o.f || 140) * (o.pitch || 1);
-      for (let k = 0; k < n; k++) {
-        const dur = rnd(0.09, 0.15);
-        vox(d, { t: k * rnd(0.15, 0.2), dur, f: [[0, f * rnd(0.95, 1.12)], [1, f * rnd(0.82, 1)]], v: [pick(['a', 'e', 'o', 'u', 'i']), pick(['a', 'o', 'e', 'u'])], breath: 0.15, g: 0.9, a: 0.02 });
-      }
-      return n * 0.2;
-    },
     meow(o, d) {
       const p = o.pitch || 1, dur = rnd(0.6, 0.85);
       vox(d, { dur, f: pf(p, [[0, 430], [0.3, 820], [0.65, 680], [1, 380]]), v: ['u', 'e', 'ow'], breath: 0.1, vib: [6, 14], g: 1.4, a: 0.05, r: 0.2 });
@@ -214,6 +190,22 @@ export function createSound(opts = {}) {
     },
   };
 
+  // ---------- speech: the browser's own text-to-speech, for the odd line ----------
+  const synth = typeof speechSynthesis !== 'undefined' && typeof SpeechSynthesisUtterance !== 'undefined' ? speechSynthesis : null;
+  let voiceList = [];
+  function loadVoices() { voiceList = synth.getVoices().filter((v) => /^en/i.test(v.lang)); }
+  if (synth) { loadVoices(); if (synth.addEventListener) synth.addEventListener('voiceschanged', loadVoices); }
+  // o: { g: volume 0..1, pitch, rate, voice: any integer (picks a voice, so each person keeps theirs) }
+  function speak(text, o = {}) {
+    if (!synth || muted || !text || !ctx || ctx.state !== 'running') return false; // not unlocked yet, or muted
+    if (synth.speaking || synth.pending) return false; // one voice at a time, so lines never queue up late
+    const u = new SpeechSynthesisUtterance(text), v = voiceList.length ? voiceList[Math.abs(o.voice || 0) % voiceList.length] : null;
+    if (v) { u.voice = v; u.lang = v.lang; } else u.lang = 'en-AU';
+    u.pitch = Math.min(2, Math.max(0.1, o.pitch ?? 1)); u.rate = Math.min(2, Math.max(0.5, o.rate ?? 1)); u.volume = Math.min(1, Math.max(0, o.g ?? 1));
+    synth.speak(u);
+    return true;
+  }
+
   function play(name, o = {}) {
     if (!ensure() || muted || voices > 16 || !lib[name]) return 0;
     if (ctx.state !== 'running' && !opts.force) return 0; // not unlocked yet
@@ -224,21 +216,19 @@ export function createSound(opts = {}) {
     muted = !!m;
     try { localStorage.setItem('line-muted', muted ? '1' : '0'); } catch {}
     if (master) master.gain.setTargetAtTime(muted ? 0 : LEVEL, ctx.currentTime, 0.05);
-  }
-  function setCrowd(n) { // how many people are close: the murmur bed follows
-    if (bed) bed.gain.setTargetAtTime(0.14 * Math.min(1, n / 18), ctx.currentTime, 0.8);
+    if (muted && synth) synth.cancel();
   }
   function unlock() { const c = ensure(); if (c && c.state !== 'running' && !opts.force) c.resume(); }
 
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', () => {
       if (!ctx) return;
-      if (document.hidden) ctx.suspend(); else ctx.resume();
+      if (document.hidden) { ctx.suspend(); if (synth) synth.cancel(); } else ctx.resume();
     });
   }
 
   return {
-    play, unlock, setMuted, setCrowd,
+    play, speak, unlock, setMuted,
     get muted() { return muted; },
     get active() { return !!ctx && !muted && ctx.state === 'running'; },
     names: Object.keys(lib),

@@ -21,7 +21,7 @@ Open it on a phone (same network) or use a portrait viewport in desktop devtools
 - Live position and tally, drifting rumours, and a stage at the front: once a minute the velvet curtains part, the person at the head walks into the dark, and the curtains close. Nobody sees what is inside.
 - Reaching the front: an ambiguous scene (3 variants), an all-time count, one whisper to leave, then rejoin at the back.
 - Controls: drag to orbit and look from any angle; two fingers pinch to zoom and slide along the line (desktop: wheel zooms, right-drag or shift-drag slides). "Front" flies the camera to the stage from anywhere in the line; double-tap or "Find me" recentres.
-- Sound, synthesised in the page (`public/audio.js`, no audio files): a soft murmur of chatter, cats and dogs that meow and bark when their bubble opens, and the odd sigh, laugh, burp, sneeze and fart nearby. Some people, more of them the longer they have stood, get fed up and grumble. Sound is positional (louder and panned by distance from the camera). It starts on the first tap; the Sound button mutes it and remembers the choice.
+- Sound, synthesised in the page (`public/audio.js`, no audio files): cats and dogs that meow and bark when their bubble opens, and the odd sigh, laugh, burp, sneeze and fart nearby. Some people, more of them the longer they have stood, get fed up and grumble. Some bubbles are also spoken aloud in the browser's own text-to-speech voice (a different voice and pitch per person); most stay as text. Sound is positional (louder and panned by distance from the camera). It starts on the first tap; the Sound button mutes it and remembers the choice.
 
 ## Not in the MVP (see the project plan)
 

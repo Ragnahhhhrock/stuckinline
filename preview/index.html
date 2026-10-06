@@ -261,7 +261,7 @@ const VOWEL = { a: [800, 1250], e: [530, 1900], i: [300, 2250], o: [500, 900], u
 
 function createSound(opts = {}) {
   const Ctx = opts.AudioContext || (typeof window !== 'undefined' ? window.AudioContext || window.webkitAudioContext : null);
-  let ctx = null, master = null, noise = null, bed = null, voices = 0, muted = false;
+  let ctx = null, master = null, noise = null, voices = 0, muted = false;
   try { muted = localStorage.getItem('line-muted') === '1'; } catch {}
   const LEVEL = 0.9;
   const rnd = (a, b) => a + Math.random() * (b - a);
@@ -278,7 +278,6 @@ function createSound(opts = {}) {
     const len = Math.floor(ctx.sampleRate * 2), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     noise = buf;
-    startBed();
     return ctx;
   }
 
@@ -351,31 +350,8 @@ function createSound(opts = {}) {
     s.connect(e); e.connect(d); s.start(t0); s.stop(t1 + 0.05); voices++; s.onended = () => { voices--; };
   }
 
-  // ---------- the crowd: a low murmur bed that swells with how many people are near ----------
-  function startBed() {
-    const t0 = ctx.currentTime;
-    const src = ctx.createBufferSource(); src.buffer = noise; src.loop = true; src.start(t0);
-    const g = ctx.createGain(); g.gain.value = 0;
-    [[520, 0.8, 3.1], [1250, 1.2, 4.4], [2300, 1.6, 5.3]].forEach(([hz, q, wob]) => {
-      const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = hz; f.Q.value = q;
-      const m = ctx.createGain(); m.gain.value = 0.6;
-      lfo(m.gain, wob, 0.35, 'sine', t0, t0 + 1e6); // a soft, syllable-like wobble
-      src.connect(f); f.connect(m); m.connect(g);
-    });
-    g.connect(master);
-    bed = g;
-  }
-
   // ---------- the sounds. each takes ({ g: loudness, p: pan, pitch, ... }, destination) and returns its length in seconds ----------
   const lib = {
-    murmur(o, d) { // a few soft syllables of someone talking: o.f is their voice pitch
-      const n = o.n || 3, f = (o.f || 140) * (o.pitch || 1);
-      for (let k = 0; k < n; k++) {
-        const dur = rnd(0.09, 0.15);
-        vox(d, { t: k * rnd(0.15, 0.2), dur, f: [[0, f * rnd(0.95, 1.12)], [1, f * rnd(0.82, 1)]], v: [pick(['a', 'e', 'o', 'u', 'i']), pick(['a', 'o', 'e', 'u'])], breath: 0.15, g: 0.9, a: 0.02 });
-      }
-      return n * 0.2;
-    },
     meow(o, d) {
       const p = o.pitch || 1, dur = rnd(0.6, 0.85);
       vox(d, { dur, f: pf(p, [[0, 430], [0.3, 820], [0.65, 680], [1, 380]]), v: ['u', 'e', 'ow'], breath: 0.1, vib: [6, 14], g: 1.4, a: 0.05, r: 0.2 });
@@ -470,6 +446,22 @@ function createSound(opts = {}) {
     },
   };
 
+  // ---------- speech: the browser's own text-to-speech, for the odd line ----------
+  const synth = typeof speechSynthesis !== 'undefined' && typeof SpeechSynthesisUtterance !== 'undefined' ? speechSynthesis : null;
+  let voiceList = [];
+  function loadVoices() { voiceList = synth.getVoices().filter((v) => /^en/i.test(v.lang)); }
+  if (synth) { loadVoices(); if (synth.addEventListener) synth.addEventListener('voiceschanged', loadVoices); }
+  // o: { g: volume 0..1, pitch, rate, voice: any integer (picks a voice, so each person keeps theirs) }
+  function speak(text, o = {}) {
+    if (!synth || muted || !text || !ctx || ctx.state !== 'running') return false; // not unlocked yet, or muted
+    if (synth.speaking || synth.pending) return false; // one voice at a time, so lines never queue up late
+    const u = new SpeechSynthesisUtterance(text), v = voiceList.length ? voiceList[Math.abs(o.voice || 0) % voiceList.length] : null;
+    if (v) { u.voice = v; u.lang = v.lang; } else u.lang = 'en-AU';
+    u.pitch = Math.min(2, Math.max(0.1, o.pitch ?? 1)); u.rate = Math.min(2, Math.max(0.5, o.rate ?? 1)); u.volume = Math.min(1, Math.max(0, o.g ?? 1));
+    synth.speak(u);
+    return true;
+  }
+
   function play(name, o = {}) {
     if (!ensure() || muted || voices > 16 || !lib[name]) return 0;
     if (ctx.state !== 'running' && !opts.force) return 0; // not unlocked yet
@@ -480,21 +472,19 @@ function createSound(opts = {}) {
     muted = !!m;
     try { localStorage.setItem('line-muted', muted ? '1' : '0'); } catch {}
     if (master) master.gain.setTargetAtTime(muted ? 0 : LEVEL, ctx.currentTime, 0.05);
-  }
-  function setCrowd(n) { // how many people are close: the murmur bed follows
-    if (bed) bed.gain.setTargetAtTime(0.14 * Math.min(1, n / 18), ctx.currentTime, 0.8);
+    if (muted && synth) synth.cancel();
   }
   function unlock() { const c = ensure(); if (c && c.state !== 'running' && !opts.force) c.resume(); }
 
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', () => {
       if (!ctx) return;
-      if (document.hidden) ctx.suspend(); else ctx.resume();
+      if (document.hidden) { ctx.suspend(); if (synth) synth.cancel(); } else ctx.resume();
     });
   }
 
   return {
-    play, unlock, setMuted, setCrowd,
+    play, speak, unlock, setMuted,
     get muted() { return muted; },
     get active() { return !!ctx && !muted && ctx.state === 'running'; },
     names: Object.keys(lib),
@@ -1418,7 +1408,19 @@ function hear(e, y) { // how loud and where, for someone at (e, y) as heard from
   const m = camera.matrixWorld.elements, side = (hearRel.x * m[0] + hearRel.y * m[1] + hearRel.z * m[2]) / Math.max(d, 1);
   return { g: Math.pow(clamp(7 / (d + 4), 0, 1), 1.5) * (1 - d / 36), p: clamp(side * 1.3, -1, 1), d };
 }
-function say(e, txt, dur, delay = 0) { e.say = { txt, from: elapsed + delay, until: elapsed + delay + dur }; } // a bubble outside the usual rhythm
+function say(e, txt, dur, delay = 0, speakP = 0) { // a bubble outside the usual rhythm; speakP is the chance it is also spoken aloud
+  e.say = { txt, from: elapsed + delay, until: elapsed + delay + dur };
+  speakLater(e, txt, delay, speakP);
+}
+function speakLater(e, txt, delay, p) { // some lines are spoken in the browser's voice; the rest stay as text
+  if (!p || e.tr.animal || Math.random() >= p) return;
+  setTimeout(() => {
+    const h = hear(e, e.tr.lh * 0.85);
+    if (!h || h.g < 0.06) return;
+    const r = (k) => hash01(e.seed + k * 3.7), kid = e.tr.kind === 'child', old = e.tr.kind === 'senior';
+    snd.speak(txt, { g: clamp(h.g * 2.2, 0.1, 1), voice: Math.floor(r(1) * 1000), pitch: kid ? 1.7 : old ? 0.8 : 0.6 + 0.8 * r(2), rate: (old ? 0.8 : 0.92) + 0.2 * r(3) });
+  }, Math.max(0, delay) * 1000 + 60);
+}
 const voiceOf = (e) => (e.tr.kind === 'child' ? 300 + 60 * hash01(e.seed + 2.2) : (100 + 120 * hash01(e.seed + 2.2)) * (e.tr.kind === 'senior' ? 0.92 : 1));
 const pitchOf = (e) => voiceOf(e) / 150;
 const waited = (e) => clamp(1 - e.pos / Math.max(state.total, 1), 0, 1); // the nearer the front, the longer they have stood here
@@ -1428,17 +1430,16 @@ function onSpeech(e, txt, y) { // a speech bubble has just opened: make the matc
   const k = e.tr.kind, o = { g: h.g, p: h.p };
   if (k === 'dog') snd.play(/sniff/i.test(txt) ? 'sniff' : 'bark', { ...o, pitch: 1 / e.tr.sz, n: /woof woof|arf arf/i.test(txt) ? 2 : 1 });
   else if (k === 'cat') snd.play(/purr/i.test(txt) ? 'purr' : /hmph/i.test(txt) ? 'huff' : /mrrp/i.test(txt) ? 'mrrp' : 'meow', { ...o, pitch: 0.9 + 0.25 * hash01(e.seed + 5.1) });
-  else snd.play('murmur', { ...o, g: o.g * 0.8, f: voiceOf(e), n: clamp(Math.ceil(txt.length / 4), 2, 7) });
+  else speakLater(e, txt, 0, 0.35);
 }
 const FUMES = ['Ugh.', 'Seriously?', 'Come on.', 'This is ridiculous.', 'Oh, for goodness’ sake.', 'Hurry up.', 'I’ve had enough.'];
 let sndPool = [], sndPeople = [], sndPoolT = 0;
 function soundTick(dt, n, t) {
   if (!snd.active) return;
-  if (!$('front').hidden) { snd.setCrowd(0); return; }
+  if (!$('front').hidden) return;
   sndPoolT -= dt;
   if (sndPoolT <= 0) { // who can be heard, refreshed a few times a second
     sndPoolT = 0.3; sndPool.length = 0; sndPeople.length = 0;
-    let near = 0;
     for (let i = 0; i < n; i++) {
       const e = lbE[i];
       if (e.walk || !e.pos) continue;
@@ -1446,9 +1447,7 @@ function soundTick(dt, n, t) {
       if (!h || h.g < 0.03) continue;
       const s = { e, y }; sndPool.push(s);
       if (!e.tr.animal) sndPeople.push(s);
-      if (h.d < 16) near++;
     }
-    snd.setCrowd(near);
   }
   if (!sndPeople.length) return;
   const crowd = clamp(sndPeople.length / 8, 0.2, 1), roll = (rate) => Math.random() < rate * crowd * dt;
@@ -1460,7 +1459,6 @@ function soundTick(dt, n, t) {
     return ha && hb ? (ha.g >= hb.g ? { ...a, h: ha } : { ...b, h: hb }) : null;
   };
   const free = (e) => !(e.say && elapsed < e.say.until);
-  if (roll(0.7)) { const s = someone(free); if (s) snd.play('murmur', { g: s.h.g * 0.6, p: s.h.p, f: voiceOf(s.e), n: 2 + Math.floor(Math.random() * 3) }); } // quiet chatter
   if (roll(0.1)) { // a tired sigh, more often from those who have stood a long time
     const s = someone((e) => e.tr.kind === 'senior' || hash01(e.seed + 40) < 0.3 + 0.5 * waited(e));
     if (s) { snd.play('sigh', { g: s.h.g, p: s.h.p, pitch: pitchOf(s.e) }); say(s.e, 'Hhhh.', 1.6); }
@@ -1468,7 +1466,7 @@ function soundTick(dt, n, t) {
   if (roll(0.05)) { const s = someone(); if (s) { snd.play('laugh', { g: s.h.g, p: s.h.p, pitch: pitchOf(s.e) }); say(s.e, 'Ha ha.', 1.5); } }
   if (roll(0.022)) {
     const s = someone();
-    if (s) { const L = snd.play('burp', { g: s.h.g, p: s.h.p, pitch: pitchOf(s.e) }); if (Math.random() < 0.5) say(s.e, 'Pardon me.', 1.8, L + 0.2); }
+    if (s) { const L = snd.play('burp', { g: s.h.g, p: s.h.p, pitch: pitchOf(s.e) }); if (Math.random() < 0.5) say(s.e, 'Pardon me.', 1.8, L + 0.2, 0.7); }
   }
   if (roll(0.028)) {
     const s = someone();
@@ -1476,16 +1474,16 @@ function soundTick(dt, n, t) {
       const L = snd.play('sneeze', { g: s.h.g, p: s.h.p, pitch: pitchOf(s.e) });
       say(s.e, 'Achoo.', 1.4, Math.max(0, L - 0.4));
       const nb = sndPeople.find((q) => q.e !== s.e && Math.abs(q.e.pos - s.e.pos) === 1 && free(q.e));
-      if (nb && Math.random() < 0.55) say(nb.e, 'Bless you.', 1.6, L + 0.5);
+      if (nb && Math.random() < 0.55) say(nb.e, 'Bless you.', 1.6, L + 0.5, 0.7);
     }
   }
   if (roll(0.028)) {
     const s = someone();
     if (s) {
       snd.play('fart', { g: s.h.g, p: s.h.p, pitch: pitchOf(s.e) });
-      if (Math.random() < 0.5) say(s.e, 'Sorry.', 1.6, 1.0);
+      if (Math.random() < 0.5) say(s.e, 'Sorry.', 1.6, 1.0, 0.6);
       const nb = sndPeople.find((q) => q.e !== s.e && Math.abs(q.e.pos - s.e.pos) === 1 && free(q.e));
-      if (nb && Math.random() < 0.35) say(nb.e, 'Seriously?', 1.6, 1.8);
+      if (nb && Math.random() < 0.35) say(nb.e, 'Seriously?', 1.6, 1.8, 0.7);
     }
   }
   // fed up: some people, more of them the longer they have waited, get through a bout of grumbling every minute or so
@@ -1502,7 +1500,7 @@ function soundTick(dt, n, t) {
       const h = hear(e, s.y);
       if (!h) break;
       snd.play(steps[k][1], { g: h.g * 1.6, p: h.p, pitch: pitchOf(e) });
-      if (steps[k][1] !== 'huff' && steps[k][1] !== 'stomp') say(e, FUMES[Math.floor(hash01(e.seed + key * 1.9) * FUMES.length)], 2.2);
+      if (steps[k][1] !== 'huff' && steps[k][1] !== 'stomp') say(e, FUMES[Math.floor(hash01(e.seed + key * 1.9) * FUMES.length)], 2.2, 0, 0.6);
       break;
     }
   }
