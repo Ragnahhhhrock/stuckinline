@@ -1,0 +1,5 @@
+node_modules
+.git
+preview
+test
+*.zip
