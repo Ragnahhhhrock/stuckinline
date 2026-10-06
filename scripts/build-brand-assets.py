@@ -107,6 +107,49 @@ def dog(d, cx, base, H, coat):
     return base - 0.9 * u
 
 
+
+def dog_front(d, cx, base, H, coat):
+    """Seated-looking dog facing the camera: floppy ears, pink tongue, patient stare."""
+    u = H * 0.5
+    dark = shade(coat, -0.35)
+    for sx in (-1, 1):
+        d.rounded_rectangle([cx + sx * 0.17 * u - 0.06 * u, base - 0.36 * u, cx + sx * 0.17 * u + 0.06 * u, base], 0.04 * u, fill=shade(coat, -0.15))
+    d.rounded_rectangle([cx - 0.27 * u, base - 0.62 * u, cx + 0.27 * u, base - 0.2 * u], 0.14 * u, fill=coat)
+    hy = base - 0.86 * u
+    for sx in (-1, 1):
+        d.rounded_rectangle([cx + sx * 0.2 * u - 0.06 * u, hy - 0.16 * u, cx + sx * 0.2 * u + 0.06 * u, hy + 0.2 * u], 0.05 * u, fill=dark)
+    d.rounded_rectangle([cx - 0.17 * u, hy - 0.2 * u, cx + 0.17 * u, hy + 0.17 * u], 0.09 * u, fill=coat)
+    d.rounded_rectangle([cx - 0.09 * u, hy - 0.01 * u, cx + 0.09 * u, hy + 0.16 * u], 0.05 * u, fill=shade(coat, 0.35))
+    d.ellipse([cx - 0.035 * u, hy - 0.01 * u, cx + 0.035 * u, hy + 0.03 * u], fill=(16, 16, 16))
+    d.rounded_rectangle([cx - 0.025 * u, hy + 0.1 * u, cx + 0.025 * u, hy + 0.2 * u], 0.02 * u, fill=(214, 120, 130))
+    for sx in (-1, 1):
+        ex = cx + sx * 0.085 * u
+        d.ellipse([ex - 0.035 * u, hy - 0.1 * u, ex + 0.035 * u, hy - 0.03 * u], fill=C['paper'])
+        d.ellipse([ex - 0.018 * u + 0.006 * u * sx, hy - 0.085 * u, ex + 0.018 * u + 0.006 * u * sx, hy - 0.045 * u], fill=(16, 16, 16))
+    return hy - 0.2 * u
+
+
+def cat_front(d, cx, base, H, coat):
+    """Cat facing the camera: pointed ears, green slit eyes, whiskers, tail held high."""
+    u = H * 0.46
+    d.line([cx + 0.2 * u, base - 0.12 * u, cx + 0.34 * u, base - 0.4 * u, cx + 0.3 * u, base - 0.7 * u], fill=coat, width=max(2, int(0.07 * u)), joint='curve')
+    d.rounded_rectangle([cx - 0.24 * u, base - 0.62 * u, cx + 0.24 * u, base], 0.12 * u, fill=coat)
+    d.rounded_rectangle([cx - 0.14 * u, base - 0.3 * u, cx + 0.14 * u, base], 0.05 * u, fill=shade(coat, 0.3))
+    hy = base - 0.82 * u
+    for sx in (-1, 1):
+        d.polygon([(cx + sx * 0.19 * u, hy - 0.04 * u), (cx + sx * 0.2 * u, hy - 0.27 * u), (cx + sx * 0.05 * u, hy - 0.15 * u)], fill=coat)
+        d.polygon([(cx + sx * 0.16 * u, hy - 0.08 * u), (cx + sx * 0.17 * u, hy - 0.2 * u), (cx + sx * 0.09 * u, hy - 0.14 * u)], fill=(214, 140, 140))
+    d.rounded_rectangle([cx - 0.2 * u, hy - 0.18 * u, cx + 0.2 * u, hy + 0.15 * u], 0.1 * u, fill=coat)
+    for sx in (-1, 1):
+        ex = cx + sx * 0.09 * u
+        d.ellipse([ex - 0.045 * u, hy - 0.08 * u, ex + 0.045 * u, hy + 0.0], fill=(156, 204, 74))
+        d.rectangle([ex - 0.007 * u, hy - 0.08 * u, ex + 0.007 * u, hy + 0.0], fill=(16, 16, 16))
+        for dy in (0.04, 0.075):
+            d.line([cx + sx * 0.12 * u, hy + dy * u, cx + sx * 0.3 * u, hy + (dy - 0.02) * u], fill=(238, 238, 238), width=max(1, int(0.008 * u)))
+    d.polygon([(cx - 0.025 * u, hy + 0.03 * u), (cx + 0.025 * u, hy + 0.03 * u), (cx, hy + 0.07 * u)], fill=(208, 136, 136))
+    return hy - 0.27 * u
+
+
 # ---------------------------------------------------------------- scene
 def scene(W, H, horizon, vx, fg_x, fg_base, fg_h, stage_w, stage_h, left_clear=0):
     """left_clear: x below which no buildings/sky clutter is drawn (keeps text areas calm)."""
@@ -172,7 +215,7 @@ def scene(W, H, horizon, vx, fg_x, fg_base, fg_h, stage_w, stage_h, left_clear=0
     d.rectangle([s(sx0 - 6), s(sy0 - 10), s(sx1 + 6), s(sy0 + 14)], fill=C['velvet'])
     d.rectangle([s(sx0 - 8), s(sy0 + 10), s(sx1 + 8), s(sy0 + 17)], fill=C['brass'])
     # soft shadows under every figure, then the figures far to near
-    kinds = ['adult', 'adult', 'child', 'adult', 'senior', 'dog', 'adult', 'adult', 'child', 'adult', 'senior', 'adult', 'dog', 'adult', 'adult', 'child', 'adult', 'adult', 'senior', 'adult', 'adult', 'adult']
+    kinds = ['adult', 'dogf', 'child', 'catf', 'senior', 'dog', 'adult', 'catf', 'child', 'adult', 'senior', 'adult', 'dog', 'adult', 'adult', 'child', 'adult', 'adult', 'senior', 'adult', 'adult', 'adult']
     k = 0.32
     slots = []
     for i, kind in enumerate(kinds):
@@ -191,7 +234,11 @@ def scene(W, H, horizon, vx, fg_x, fg_base, fg_h, stage_w, stage_h, left_clear=0
         cloth = CLOTH[(i * 3 + 1) % len(CLOTH)]
         hair = HAIR[(i * 2) % len(HAIR)]
         skin = SKIN[i % len(SKIN)]
-        if kind == 'dog':
+        if kind == 'dogf':
+            dog_front(d, s(x), s(y), s(hh), (200, 160, 110))
+        elif kind == 'catf':
+            cat_front(d, s(x), s(y), s(hh), (214, 150, 80) if i == 3 else (236, 228, 214))
+        elif kind == 'dog':
             dog(d, s(x), s(y), s(hh), shade(rnd_choice(i), 0))
         elif i == 0:
             top_of_fg = person(d, s(x), s(y), s(hh), 'adult', (92, 84, 120), (42, 29, 18), SKIN[0], front=True)
