@@ -177,22 +177,22 @@ function makeBouncer(skinHex, hairHex, beard) {
   const JK = 0x101015, LAP = 0x24242e, WH = 0xf2f0ea, SK = skinHex, BH = 1.47; // jacket, satin lapel, shirt, skin, head height
   const parts = [
     // trousers and polished shoes
-    bp(Box(0.22, 0.64, 0.23), { p: [-0.13, 0.32, 0], c: JK }), bp(Box(0.22, 0.64, 0.23), { p: [0.13, 0.32, 0], c: JK }),
-    bp(Box(0.23, 0.09, 0.33), { p: [-0.13, 0.045, -0.05], c: 0x060608 }), bp(Box(0.23, 0.09, 0.33), { p: [0.13, 0.045, -0.05], c: 0x060608 }),
+    bp(Box(0.26, 0.64, 0.27), { p: [-0.15, 0.32, 0], c: JK }), bp(Box(0.26, 0.64, 0.27), { p: [0.15, 0.32, 0], c: JK }),
+    bp(Box(0.27, 0.09, 0.36), { p: [-0.15, 0.045, -0.05], c: 0x060608 }), bp(Box(0.27, 0.09, 0.36), { p: [0.15, 0.045, -0.05], c: 0x060608 }),
     // jacket: deep chest, broad shoulders
-    bp(Box(0.66, 0.64, 0.36), { p: [0, 0.94, 0], c: JK }),
-    bp(Box(0.78, 0.16, 0.36), { p: [0, 1.18, 0], c: JK }),
-    bp(Sph(0.11, 8, 6), { s: [1, 0.8, 1.4], p: [-0.38, 1.2, 0], c: JK }), bp(Sph(0.11, 8, 6), { s: [1, 0.8, 1.4], p: [0.38, 1.2, 0], c: JK }),
+    bp(Box(0.80, 0.64, 0.44), { p: [0, 0.94, 0], c: JK }),
+    bp(Box(0.96, 0.18, 0.42), { p: [0, 1.18, 0], c: JK }),
+    bp(Sph(0.14, 8, 6), { s: [1, 0.85, 1.4], p: [-0.46, 1.2, 0], c: JK }), bp(Sph(0.14, 8, 6), { s: [1, 0.85, 1.4], p: [0.46, 1.2, 0], c: JK }),
     // shirt front, studs, collar, bow tie, satin lapels
-    bp(Box(0.17, 0.36, 0.01), { p: [0, 1.06, -0.182], c: WH }),
-    bp(Sph(0.012, 6, 4), { p: [0, 1.12, -0.19], c: 0x0a0a0a }), bp(Sph(0.012, 6, 4), { p: [0, 1.03, -0.19], c: 0x0a0a0a }),
-    bp(Box(0.2, 0.06, 0.04), { p: [0, 1.255, -0.15], c: WH }),
-    bp(new THREE.ConeGeometry(0.04, 0.08, 4), { r: [0, 0, Math.PI / 2], p: [-0.04, 1.22, -0.19], c: 0x050505 }),
-    bp(new THREE.ConeGeometry(0.04, 0.08, 4), { r: [0, 0, -Math.PI / 2], p: [0.04, 1.22, -0.19], c: 0x050505 }),
-    bp(Box(0.09, 0.42, 0.012), { r: [0, 0, -0.32], p: [-0.12, 1.04, -0.184], c: LAP }), bp(Box(0.09, 0.42, 0.012), { r: [0, 0, 0.32], p: [0.12, 1.04, -0.184], c: LAP }),
-    bp(Box(0.11, 0.07, 0.01), { p: [-0.21, 1.1, -0.183], c: WH }), // pocket square
+    bp(Box(0.17, 0.36, 0.01), { p: [0, 1.06, -0.222], c: WH }),
+    bp(Sph(0.012, 6, 4), { p: [0, 1.12, -0.23], c: 0x0a0a0a }), bp(Sph(0.012, 6, 4), { p: [0, 1.03, -0.23], c: 0x0a0a0a }),
+    bp(Box(0.2, 0.06, 0.04), { p: [0, 1.255, -0.17], c: WH }),
+    bp(new THREE.ConeGeometry(0.04, 0.08, 4), { r: [0, 0, Math.PI / 2], p: [-0.04, 1.22, -0.215], c: 0x050505 }),
+    bp(new THREE.ConeGeometry(0.04, 0.08, 4), { r: [0, 0, -Math.PI / 2], p: [0.04, 1.22, -0.215], c: 0x050505 }),
+    bp(Box(0.09, 0.42, 0.012), { r: [0, 0, -0.32], p: [-0.13, 1.04, -0.224], c: LAP }), bp(Box(0.09, 0.42, 0.012), { r: [0, 0, 0.32], p: [0.13, 1.04, -0.224], c: LAP }),
+    bp(Box(0.11, 0.07, 0.01), { p: [-0.26, 1.1, -0.223], c: WH }), // pocket square
     // thick neck and head
-    bp(new THREE.CylinderGeometry(0.11, 0.13, 0.16, 10), { p: [0, 1.31, 0], c: SK }),
+    bp(new THREE.CylinderGeometry(0.13, 0.16, 0.16, 10), { p: [0, 1.31, 0], c: SK }),
     bp(Sph(0.21, 14, 10), { s: [1.04, 1.05, 1], p: [0, BH, 0], c: SK }),
     bp(Sph(0.048, 8, 6), { s: [0.5, 1, 0.8], p: [-0.215, BH - 0.01, 0.01], c: SK }), bp(Sph(0.048, 8, 6), { s: [0.5, 1, 0.8], p: [0.215, BH - 0.01, 0.01], c: SK }),
     // stern face: eyes, heavy brows angled down to the middle, flat mouth, nose
@@ -203,27 +203,27 @@ function makeBouncer(skinHex, hairHex, beard) {
     bp(Sph(0.036, 8, 6), { s: [0.9, 1.1, 1.3], p: [0, BH - 0.035, -0.2], c: new THREE.Color(SK).multiplyScalar(0.92).getHex() }),
     // earpiece in the left ear, with its coiled clear wire running down into the collar
     bp(Sph(0.022, 6, 5), { p: [-0.225, BH - 0.015, -0.005], c: 0x0c0c0c }),
-    limb([-0.225, BH - 0.03, 0.02], [-0.17, 1.24, 0.13], 0.01, 0xcfd6e0),
+    limb([-0.225, BH - 0.03, 0.02], [-0.19, 1.24, 0.15], 0.01, 0xcfd6e0),
   ];
   for (let i = 0; i < 5; i++) { const f = (i + 0.5) / 5; parts.push(bp(new THREE.TorusGeometry(0.016, 0.005, 4, 8), { r: [Math.PI / 2, 0, 0], p: [-0.225 + 0.055 * f, BH - 0.03 - (BH - 1.27) * f, 0.02 + 0.11 * f], c: 0xcfd6e0 })); }
   // arms: upper arms hang from the shoulders, forearms come in to hands clasped in front (right over left)
   for (const sx of [-1, 1]) {
-    const sh = [sx * 0.39, 1.16, 0], el = [sx * 0.42, 0.86, -0.04], wr = [sx * 0.09, 0.72, -0.27];
-    parts.push(limb(sh, el, 0.19, JK), limb(el, wr, 0.16, JK));
-    parts.push(limb([sx * 0.11, 0.73, -0.255], [sx * 0.085, 0.72, -0.275], 0.12, WH)); // shirt cuff
+    const sh = [sx * 0.47, 1.16, 0], el = [sx * 0.50, 0.86, -0.06], wr = [sx * 0.10, 0.72, -0.32];
+    parts.push(limb(sh, el, 0.24, JK), limb(el, wr, 0.20, JK));
+    parts.push(limb([sx * 0.125, 0.73, -0.30], [sx * 0.095, 0.72, -0.325], 0.14, WH)); // shirt cuff
   }
-  parts.push(bp(Sph(0.075, 8, 6), { s: [1.2, 0.85, 1], p: [-0.03, 0.70, -0.30], c: SK }), bp(Sph(0.075, 8, 6), { s: [1.2, 0.85, 1], p: [0.035, 0.715, -0.32], c: SK }));
+  parts.push(bp(Sph(0.085, 8, 6), { s: [1.2, 0.85, 1], p: [-0.03, 0.70, -0.35], c: SK }), bp(Sph(0.085, 8, 6), { s: [1.2, 0.85, 1], p: [0.035, 0.715, -0.37], c: SK }));
   // hair: a close buzz cut, or a clean-shaven head with a short beard
   if (hairHex != null) parts.push(bp(new THREE.SphereGeometry(0.216, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.4), { s: [1.04, 1.05, 1.01], p: [0, BH, 0.01], c: hairHex }));
   if (beard) parts.push(bp(new THREE.SphereGeometry(0.214, 14, 8, 0, Math.PI * 2, Math.PI * 0.66, Math.PI * 0.26), { s: [1.04, 1.05, 1.02], p: [0, BH, 0], c: beard }));
   const m = new THREE.Mesh(mergeParts(parts, true), new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
-  m.scale.set(1.18, 1.12, 1.18); // big lads
+  m.scale.set(1.25, 1.3, 1.25); // big lads
   return m;
 }
 const bouncers = [makeBouncer(0xe6bf9c, 0x3a2a1e, null), makeBouncer(0x4a2f20, null, 0x120c08)];
 bouncers.forEach((b, i) => {
   const sx = i === 0 ? -1 : 1;
-  b.position.set(sx * 2.2, FLOOR, 0.42);
+  b.position.set(sx * 2.1, FLOOR, 0.42);
   b.rotation.y = Math.PI - sx * 0.22; // turned round to face the queue, angled a touch towards it
   stage.add(b);
 });
@@ -388,7 +388,7 @@ function frame(now) {
   curtainL.scale.x = curtainR.scale.x = 1 - 0.84 * ease;
   glow.material.opacity = 0.3 * ease;
   spill.intensity = 3 * ease;
-  bouncers.forEach((b, i) => { b.scale.y = 1.12 * (1 + Math.sin(t * 1.1 + i * 2.3) * 0.006); }); // slow, steady breathing
+  bouncers.forEach((b, i) => { b.scale.y = 1.3 * (1 + Math.sin(t * 1.1 + i * 2.3) * 0.006); }); // slow, steady breathing
 
   // people ease towards their target spots, so the line visibly shuffles forward; legs swing while they move
   let n = 0, gi = 0, bi = 0, si = 0;
