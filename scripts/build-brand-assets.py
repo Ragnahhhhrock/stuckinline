@@ -151,7 +151,7 @@ def cat_front(d, cx, base, H, coat):
 
 
 # ---------------------------------------------------------------- scene
-def scene(W, H, horizon, vx, fg_x, fg_base, fg_h, stage_w, stage_h, left_clear=0):
+def scene(W, H, horizon, vx, fg_x, fg_base, fg_h, stage_w, stage_h, left_clear=0, place='#?'):
     """left_clear: x below which no buildings/sky clutter is drawn (keeps text areas calm)."""
     w, h = W * SS, H * SS
     s = lambda v: v * SS
@@ -258,7 +258,7 @@ def scene(W, H, horizon, vx, fg_x, fg_base, fg_h, stage_w, stage_h, left_clear=0
     pw, ph = s(fg_h * 0.2), s(fg_h * 0.1)
     py = my - s(mw * 1.9) - s(fg_h * 0.035)
     d.rounded_rectangle([cx0 - pw / 2, py - ph, cx0 + pw / 2, py], ph / 2, fill=C['gold'])
-    d.text((cx0, py - ph / 2), '#?', font=pf, fill=C['goldInk'], anchor='mm')
+    d.text((cx0, py - ph / 2), place, font=pf, fill=C['goldInk'], anchor='mm')
     return img
 
 
@@ -341,6 +341,40 @@ def portrait(name, W, H, square=False):
     finish(img, name)
 
 
+def coffee_cup(img, cx, base, h):
+    """Plain boxy paper cup: paper body, kerb sleeve, lid, quiet steam. No marks, no gold."""
+    w, hh = img.size
+    sh = layer((w, hh))
+    ImageDraw.Draw(sh).ellipse([cx - 0.6 * h, base - 0.05 * h, cx + 0.6 * h, base + 0.07 * h], fill=(0, 0, 0, 150))
+    img.alpha_composite(sh.filter(ImageFilter.GaussianBlur(5 * SS)))
+    d = ImageDraw.Draw(img)
+    tw, bw = 0.78 * h, 0.58 * h  # top and bottom widths of the cup
+    top = base - h
+    d.polygon([(cx - tw / 2, top + 0.14 * h), (cx + tw / 2, top + 0.14 * h), (cx + bw / 2, base), (cx - bw / 2, base)], fill=C['paper'])
+    f = lambda y: (y - (top + 0.14 * h)) / (0.86 * h)
+    y0, y1 = top + 0.4 * h, top + 0.72 * h
+    wx = lambda y, sgn: cx + sgn * (tw / 2 + (bw / 2 - tw / 2) * f(y))
+    d.polygon([(wx(y0, -1), y0), (wx(y0, 1), y0), (wx(y1, 1), y1), (wx(y1, -1), y1)], fill=C['kerb'])
+    d.rounded_rectangle([cx - tw / 2 - 0.04 * h, top + 0.05 * h, cx + tw / 2 + 0.04 * h, top + 0.16 * h], 0.03 * h, fill=shade(C['paper'], -0.12))
+    d.rounded_rectangle([cx - tw / 2 + 0.03 * h, top, cx + tw / 2 - 0.03 * h, top + 0.07 * h], 0.03 * h, fill=shade(C['paper'], -0.12))
+    st = layer((w, hh))
+    sd = ImageDraw.Draw(st)
+    for i, dx in enumerate((-0.18, 0.0, 0.18)):
+        x = cx + dx * h
+        sd.rounded_rectangle([x - 0.025 * h, top - (0.34 + 0.06 * (i % 2)) * h, x + 0.025 * h, top - 0.1 * h], 0.025 * h, fill=with_alpha(C['quiet'], 150))
+    img.alpha_composite(st)
+
+
+def product(name, size=1200):
+    f = size / 1080
+    img = scene(size, size, horizon=520 * f, vx=560 * f, fg_x=330 * f, fg_base=960 * f, fg_h=400 * f, stage_w=250 * f, stage_h=150 * f, place='#1')
+    coffee_cup(img, 850 * f * SS, 905 * f * SS, 230 * f * SS)
+    headline(img, 70 * f, 50 * f, [[("Straight to", INK)], [("the front?", INK)]], 96 * f, lead=1.05)
+    pill(img, 830 * f, 975 * f, T['domain'], 40 * f, pad_x=40 * f, pad_y=20 * f)
+    tracked(img, 70 * f, 1035 * f, 'STUCK IN LINE', font('Bold', 22 * f), QUIET, 5)
+    finish(img, name)
+
+
 def icon(name, size):
     S = size * SS
     img = Image.new('RGB', (S, S), C['night'])
@@ -359,5 +393,6 @@ if __name__ == '__main__':
     landscape('twitter-card.png', 600)
     portrait('instagram-facebook-4x5.png', 1080, 1350)
     portrait('social-square.png', 1080, 1080, square=True)
+    product('stripe-product.png')
     icon('apple-touch-icon.png', 180)
     icon('favicon-32.png', 32)
