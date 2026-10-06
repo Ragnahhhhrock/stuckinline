@@ -236,6 +236,203 @@ const curveX = (pos) => Math.sin(pos * 0.05) * 1.1 + Math.sin(pos * 0.017) * 1.6
 const hash01 = (n) => { const x = Math.sin(n * 12.9898) * 43758.5453; return x - Math.floor(x); };
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
+// ---------- the street: pavement, road, buildings, shopfronts, lamps, trees, rope barriers, slow traffic ----------
+// Everything is generated from the camera's position along the line, so the street never ends; it is kept dim and low in
+// contrast so the line stays the focus. The stage is at the end of the street, in front of a blank dark wall.
+const street = new THREE.Group();
+scene.add(street);
+const cvs = (w, h, draw) => {
+  const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
+  const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace; tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.anisotropy = 4;
+  return tx;
+};
+const SLAB = 2, ROAD_T = 8, LEN = 240, PAVE_L = -8, PAVE_R = 9.6;
+const inst = (geo, mat, max) => { const m = new THREE.InstancedMesh(geo, mat, max); m.frustumCulled = false; street.add(m); return m; };
+const lam = (o) => new THREE.MeshLambertMaterial(o);
+
+const paveTex = cvs(128, 128, (g, w, h) => {
+  g.fillStyle = '#34384c'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 70; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * 0.03})`; g.fillRect(Math.random() * w, Math.random() * h, 6 + Math.random() * 18, 6 + Math.random() * 18); }
+  g.strokeStyle = '#252839'; g.lineWidth = 3; g.strokeRect(0, 0, w, h);
+});
+paveTex.repeat.set((PAVE_R - PAVE_L) / SLAB, LEN / SLAB);
+const roadTex = cvs(64, 128, (g, w, h) => {
+  g.fillStyle = '#1b1d28'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 80; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * 0.03})`; g.fillRect(Math.random() * w, Math.random() * h, 2 + Math.random() * 5, 2 + Math.random() * 5); }
+  g.fillStyle = '#7b7860'; g.fillRect(w / 2 - 1.5, 10, 3, 56);
+});
+roadTex.repeat.set(1, LEN / ROAD_T);
+const flat = (w, tx, x0, y) => {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, LEN).rotateX(-Math.PI / 2).translate(x0, y, 0),
+    lam({ map: tx, color: 0xcfd2e0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+  street.add(m); return m;
+};
+const pave = flat(PAVE_R - PAVE_L, paveTex, (PAVE_L + PAVE_R) / 2, 0.01);
+const road = flat(8, roadTex, -12, 0.01);
+const kerb = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.16, LEN).translate(-8.14, 0.08, 0), lam({ color: 0x4a4e63 }));
+street.add(kerb);
+// the street ends at the stage, in front of a blank wall
+street.add(new THREE.Mesh(new THREE.BoxGeometry(150, 26, 6).translate(0, 13, -10), lam({ color: 0x161926 })));
+
+// buildings: six height classes, each with its own window pattern; a few windows are lit
+const facadeTex = cvs(256, 256, (g, w, h) => {
+  g.fillStyle = '#3b3f52'; g.fillRect(0, 0, w, h);
+  const bw = w / 3, fh = h / 3;
+  for (let ix = 0; ix < 3; ix++) for (let iy = 0; iy < 3; iy++) {
+    const x = ix * bw + bw * 0.2, y = iy * fh + fh * 0.2, ww = bw * 0.6, hh = fh * 0.52, on = Math.random() < 0.28;
+    g.fillStyle = on ? '#c99a58' : '#181b2b'; g.fillRect(x, y, ww, hh);
+    g.fillStyle = '#00000055'; g.fillRect(x, y + hh, ww, 4);
+  }
+});
+const FLOORS = [3, 4, 5, 6, 7, 8], BD = 9, BW = 8.2, FH = 3.2, BSTEP = 9, RX = 9.6, LX = -17.6;
+const bMat = new THREE.MeshBasicMaterial({ map: facadeTex });
+const bCls = FLOORS.map((fl, ci) => {
+  const H = fl * FH, geo = new THREE.BoxGeometry(BD, H, BW), uv = geo.attributes.uv, nrm = geo.attributes.normal;
+  const ou = hash01(ci * 3.7), ov = hash01(ci * 5.9);
+  for (let i = 0; i < uv.count; i++) {
+    const nx = Math.abs(nrm.getX(i)) > 0.5, ny = Math.abs(nrm.getY(i)) > 0.5;
+    if (ny) { uv.setXY(i, 0.02, 0.02); continue; }
+    uv.setXY(i, uv.getX(i) * ((nx ? BW : BD) / 10.5) + ou, uv.getY(i) * (H / 9.6) + ov);
+  }
+  return inst(geo, bMat, 40);
+});
+const shopTex = cvs(256, 96, (g, w, h) => {
+  g.fillStyle = '#1b1e2c'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#d8d2c6' : '#8d4a3a'; g.fillRect(i * 32, 0, 32, 22); }
+  g.fillStyle = '#00000066'; g.fillRect(0, 22, w, 4);
+  const gr = g.createLinearGradient(0, 30, 0, 90); gr.addColorStop(0, '#ffe2b0'); gr.addColorStop(1, '#a9702f');
+  g.fillStyle = gr; g.fillRect(14, 32, 150, 58); g.fillRect(180, 32, 62, 58);
+  g.fillStyle = '#24182299'; for (let i = 0; i < 6; i++) g.fillRect(24 + i * 24, 40 + (i % 3) * 8, 14, 38 - (i % 3) * 8);
+  g.fillStyle = '#1b1e2c'; g.fillRect(166, 32, 12, 58);
+});
+const shopM = inst(new THREE.PlaneGeometry(BW - 0.4, 3.0).rotateY(-Math.PI / 2).translate(RX - 0.03, 1.5, 0), new THREE.MeshBasicMaterial({ map: shopTex }), 40);
+const BTINT = [[1, 1, 1], [1.12, 0.96, 0.9], [0.9, 1, 1.14], [1.04, 1.1, 0.94], [0.82, 0.86, 0.92]].map((a) => new THREE.Color(a[0], a[1], a[2]));
+const STINT = [[0.85, 0.7, 0.55], [0.6, 0.78, 0.9], [0.9, 0.55, 0.65], [0.7, 0.9, 0.62], [0.9, 0.85, 0.7]].map((a) => new THREE.Color(a[0], a[1], a[2]));
+
+// lamp posts with a soft pool of light on the pavement
+const lampGeo = mergeParts([
+  bp(new THREE.CylinderGeometry(0.06, 0.08, 4.6, 8), { p: [0, 2.3, 0], c: 0x262a37 }), bp(Box(1.1, 0.07, 0.07), { p: [-0.5, 4.58, 0], c: 0x262a37 }),
+  bp(Box(0.5, 0.1, 0.24), { p: [-1.0, 4.54, 0], c: 0x262a37 }),
+], true);
+const lampM = inst(lampGeo, lam({ vertexColors: true }), 48);
+const bulbM = inst(new THREE.SphereGeometry(0.13, 8, 6).translate(-1.0, 4.45, 0), new THREE.MeshBasicMaterial({ color: 0xffdca0 }), 48);
+const poolM = inst(new THREE.PlaneGeometry(7, 7).rotateX(-Math.PI / 2).translate(-1.0, 0.03, 0),
+  new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, opacity: 0.42, depthWrite: false, blending: THREE.AdditiveBlending }), 48);
+
+// trees, benches, bins
+const trunkM = inst(new THREE.CylinderGeometry(0.1, 0.14, 2.6, 6).translate(0, 1.3, 0), lam({ color: 0x2b211c }), 48);
+const leafM = inst(new THREE.IcosahedronGeometry(1.5, 1).scale(1, 0.85, 1).translate(0, 3.5, 0), lam({ color: 0xffffff, flatShading: true }), 48);
+const benchM = inst(mergeParts([
+  bp(Box(1.6, 0.07, 0.45), { p: [0, 0.46, 0], c: 0x5a4636 }), bp(Box(1.6, 0.38, 0.05), { p: [0, 0.74, 0.2], c: 0x5a4636 }),
+  bp(Box(0.06, 0.46, 0.4), { p: [-0.7, 0.23, 0], c: 0x22252f }), bp(Box(0.06, 0.46, 0.4), { p: [0.7, 0.23, 0], c: 0x22252f }),
+], true), lam({ vertexColors: true }), 16);
+const binM = inst(new THREE.CylinderGeometry(0.23, 0.2, 0.8, 10).translate(0, 0.4, 0), lam({ color: 0x2c4a3d }), 16);
+const LEAF = [0x24402f, 0x2b4a36, 0x1f3a33, 0x31503a].map((c) => new THREE.Color(c));
+
+// rope-and-stanchion barrier along both sides of the line
+const postM = inst(mergeParts([
+  bp(new THREE.CylinderGeometry(0.11, 0.12, 0.03, 10), { p: [0, 0.015, 0], c: 0x2a2d38 }), bp(new THREE.CylinderGeometry(0.03, 0.035, 0.9, 8), { p: [0, 0.47, 0], c: 0x30333f }),
+  bp(Sph(0.06, 8, 6), { p: [0, 0.95, 0], c: 0xb08d4a }),
+], true), lam({ vertexColors: true }), 200);
+const ropeM = inst(new THREE.BoxGeometry(0.035, 0.035, 1), lam({ color: 0x8a1f36 }), 200);
+
+// slow traffic on the road: dim, quiet, never close to the line
+const carGeo = mergeParts([
+  bp(Box(1.8, 0.55, 4.1), { p: [0, 0.52, 0], c: 0xffffff }), bp(Box(1.5, 0.45, 2.2), { p: [0, 1.0, 0.15], c: 0x30343f }),
+  ...[[-0.9, -1.3], [0.9, -1.3], [-0.9, 1.3], [0.9, 1.3]].map(([x, z]) => bp(Box(0.2, 0.5, 0.6), { p: [x, 0.25, z], c: 0x101116 })),
+], true);
+const carM = inst(carGeo, lam({ vertexColors: true }), 16);
+const carLightM = inst(mergeParts([
+  bp(Box(0.3, 0.12, 0.05), { p: [-0.6, 0.55, -2.07], c: 0xfff1c9 }), bp(Box(0.3, 0.12, 0.05), { p: [0.6, 0.55, -2.07], c: 0xfff1c9 }),
+  bp(Box(0.3, 0.12, 0.05), { p: [-0.6, 0.6, 2.07], c: 0xc4202c }), bp(Box(0.3, 0.12, 0.05), { p: [0.6, 0.6, 2.07], c: 0xc4202c }),
+], true), new THREE.MeshBasicMaterial({ vertexColors: true }), 16);
+const CAR_COL = [0x8b8f9c, 0x5b6a8a, 0x8a4a4a, 0x4f6d5a, 0xb9b3a0, 0x3c3f4a].map((c) => new THREE.Color(c));
+const CARS = Array.from({ length: 12 }, (_, i) => ({ lane: i % 2, base: hash01(i * 4.1) * 220, v: 3 + hash01(i * 7.7) * 3, col: CAR_COL[i % CAR_COL.length] }));
+
+// a scatter of stars
+const stars = (() => {
+  const n = 180, p = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { const a = hash01(i * 3.1) * Math.PI * 2, e = 0.18 + hash01(i * 5.3) * 0.9, r = 150; p.set([Math.cos(a) * Math.cos(e) * r, Math.sin(e) * r, Math.sin(a) * Math.cos(e) * r], i * 3); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+  const pts = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xcfd6ff, size: 1.6, sizeAttenuation: false, transparent: true, opacity: 0.55, fog: false, depthWrite: false }));
+  pts.frustumCulled = false; scene.add(pts); return pts;
+})();
+
+const sm = new THREE.Matrix4(), sr = new THREE.Matrix4(), sq = new THREE.Matrix4(), sv = new THREE.Vector3(), sK = new THREE.Color();
+const wrap = (a, L) => ((a % L) + L) % L;
+function streetUpdate(cx, cz, t) {
+  const snap = (v, s) => Math.round(v / s) * s;
+  pave.position.z = snap(cz, SLAB); road.position.z = snap(cz, ROAD_T); kerb.position.z = snap(cz, 4);
+  stars.position.set(cx, 0, cz);
+
+  // buildings and shopfronts
+  const bn = FLOORS.map(() => 0); let shn = 0;
+  for (let i = Math.floor((cz - 110) / BSTEP); i <= Math.floor((cz + 110) / BSTEP); i++) {
+    const zc = i * BSTEP + BSTEP / 2;
+    if (zc < 4) continue;
+    for (const side of [1, -1]) {
+      const h = hash01(i * 2 + (side > 0 ? 1 : 0) + 100), ci = Math.floor(h * FLOORS.length) % FLOORS.length, m = bCls[ci];
+      sr.makeRotationY(side > 0 ? 0 : Math.PI); sm.makeTranslation(side > 0 ? RX + BD / 2 : LX - BD / 2, FLOORS[ci] * FH / 2, zc).multiply(sr);
+      m.setMatrixAt(bn[ci], sm); m.setColorAt(bn[ci], BTINT[Math.floor(hash01(i * 3 + side) * BTINT.length)]); bn[ci]++;
+      if (side > 0 && hash01(i + 40) > 0.15) { sm.makeTranslation(0, 0, zc); shopM.setMatrixAt(shn, sm); shopM.setColorAt(shn, STINT[Math.floor(hash01(i * 7 + 3) * STINT.length)]); shn++; }
+    }
+  }
+  bCls.forEach((m, i) => { m.count = bn[i]; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; });
+  shopM.count = shn; shopM.instanceMatrix.needsUpdate = true; if (shopM.instanceColor) shopM.instanceColor.needsUpdate = true;
+
+  // lamps (every 14 m, both sides)
+  let n = 0;
+  for (let i = Math.ceil((cz - 110) / 14); i <= Math.floor((cz + 110) / 14); i++) {
+    const z = i * 14 + 3;
+    if (z < 3) continue;
+    for (const side of [1, -1]) {
+      sr.makeRotationY(side > 0 ? 0 : Math.PI); sm.makeTranslation(side * 7.5, 0, z).multiply(sr);
+      lampM.setMatrixAt(n, sm); bulbM.setMatrixAt(n, sm); poolM.setMatrixAt(n, sm); n++;
+    }
+  }
+  lampM.count = bulbM.count = poolM.count = n;
+  [lampM, bulbM, poolM].forEach((m) => { m.instanceMatrix.needsUpdate = true; });
+
+  // trees (every 18 m, alternating sides)
+  n = 0;
+  for (let i = Math.ceil((cz - 110) / 18); i <= Math.floor((cz + 110) / 18); i++) for (const side of [1, -1]) {
+    const z = i * 18 + (side > 0 ? 0 : 9) + 3;
+    if (z < 5) continue;
+    sm.makeTranslation(side * 6.4, 0, z); trunkM.setMatrixAt(n, sm);
+    sm.makeRotationY(hash01(i + side) * 6).setPosition(side * 6.4, 0, z); leafM.setMatrixAt(n, sm); leafM.setColorAt(n, LEAF[Math.floor(hash01(i * 2 + side) * LEAF.length)]); n++;
+  }
+  trunkM.count = leafM.count = n; trunkM.instanceMatrix.needsUpdate = leafM.instanceMatrix.needsUpdate = true; if (leafM.instanceColor) leafM.instanceColor.needsUpdate = true;
+
+  // benches (left) and bins (right)
+  let b = 0, c = 0;
+  for (let i = Math.ceil((cz - 110) / 37); i <= Math.floor((cz + 110) / 37); i++) { const z = i * 37 + 16; if (z > 6) { sr.makeRotationY(Math.PI / 2).setPosition(-6.8, 0, z); benchM.setMatrixAt(b++, sr); } }
+  for (let i = Math.ceil((cz - 110) / 29); i <= Math.floor((cz + 110) / 29); i++) { const z = i * 29 + 7; if (z > 6) { sm.makeTranslation(7.1, 0, z); binM.setMatrixAt(c++, sm); } }
+  benchM.count = b; binM.count = c; benchM.instanceMatrix.needsUpdate = binM.instanceMatrix.needsUpdate = true;
+
+  // rope barrier: a post every 3 places on both sides of the line, with rope between
+  let pn = 0, rn = 0;
+  const last = (state.total || 0) + 3, k0 = Math.max(0, Math.floor((cz / SP - 70) / 3)), k1 = Math.floor(Math.min(cz / SP + 70, last) / 3);
+  for (let k = k0; k <= k1; k++) for (const side of [-1, 1]) {
+    const x = curveX(k * 3) + side * 1.75, z = k * 3 * SP;
+    sm.makeTranslation(x, 0, z); postM.setMatrixAt(pn++, sm);
+    if (k < k1) {
+      const x2 = curveX(k * 3 + 3) + side * 1.75, z2 = (k * 3 + 3) * SP, dx = x2 - x, dz = z2 - z, len = Math.hypot(dx, dz);
+      sq.makeRotationY(Math.atan2(dx, dz)); sr.makeScale(1, 1, len); sm.makeTranslation((x + x2) / 2, 0.8, (z + z2) / 2).multiply(sq).multiply(sr);
+      ropeM.setMatrixAt(rn++, sm);
+    }
+  }
+  postM.count = pn; ropeM.count = rn; postM.instanceMatrix.needsUpdate = ropeM.instanceMatrix.needsUpdate = true;
+
+  // traffic
+  CARS.forEach((car, i) => {
+    const dir = car.lane ? 1 : -1, z = cz - 110 + wrap(car.base + dir * car.v * t - (cz - 110), 220);
+    sr.makeRotationY(dir > 0 ? Math.PI : 0);
+    if (z < -3) sm.makeScale(0, 0, 0); else sm.makeTranslation(car.lane ? -14.2 : -9.8, 0, z).multiply(sr);
+    carM.setMatrixAt(i, sm); carLightM.setMatrixAt(i, sm); carM.setColorAt(i, car.col);
+  });
+  carM.count = carLightM.count = CARS.length; carM.instanceMatrix.needsUpdate = carLightM.instanceMatrix.needsUpdate = true; if (carM.instanceColor) carM.instanceColor.needsUpdate = true;
+}
+
 const SKIN = ['#f3d2b3', '#e8bb94', '#d19a6e', '#b57a52', '#8a5636', '#5b3a26'].map((c) => new THREE.Color(c));
 const HAIR = ['#16110d', '#16110d', '#2e1d12', '#2e1d12', '#4a2f1a', '#4a2f1a', '#6e3a1c', '#b9904e', '#a9481f', '#8f8f8f', '#d9d5cd'].map((c) => new THREE.Color(c));
 const PANTS = ['#26324a', '#2b2b33', '#6b5b43', '#3e5a7a', '#4a5240', '#5a3d2e', '#1f1f24', '#7a7466'].map((c) => new THREE.Color(c));
@@ -251,7 +448,7 @@ function makeTraits(seed) { // everything about a person's look comes from their
     shirt: new THREE.Color().setHSL(r(8), 0.3 + r(9) * 0.3, 0.38 + r(10) * 0.2), pants: PANTS[Math.floor(r(11) * PANTS.length)],
     glasses: r(12) < 0.22, facial: hairStyle === 1 || hairStyle === 2 ? 0 : f < 0.14 ? 1 : f < 0.28 ? 2 : 0, // beard / moustache
     fcol: hairStyle === 5 ? new THREE.Color('#3a2616') : hair,
-    w: 0.94 + 0.14 * r(13), h: 0.92 + 0.16 * r(14), fx: 0.9 + 0.22 * r(15), fy: 0.96 + 0.1 * r(16), ns: 0.8 + 0.6 * r(17),
+    w: 0.94 + 0.14 * r(13), h: 0.92 + 0.16 * r(14), fx: 0.9 + 0.22 * r(15), fy: 0.96 + 0.1 * r(16), ns: 0.8 + 0.6 * r(17), phone: r(18) < 0.2, chatty: r(19) < 0.16,
   };
 }
 
@@ -355,7 +552,7 @@ setTimeout(() => $('hint').classList.add('on'), 1200);
 setTimeout(hideHint, 10000);
 
 // ---------- render loop ----------
-const dummy = new THREE.Object3D();
+const dummy = new THREE.Object3D(); dummy.rotation.order = 'YXZ';
 // place-in-line labels: DOM elements pinned above each head (projected from 3D, so they follow orbit and zoom)
 const labelsEl = $('labels'), labelEls = [], lbE = [], lbY = [];
 const v3 = new THREE.Vector3(), fwd = new THREE.Vector3();
@@ -412,7 +609,15 @@ function frame(now) {
     const sw = Math.sin(e.ph) * e.amp;
     if (speed > 0.4) y += Math.abs(Math.sin(e.ph)) * 0.03;
     dummy.position.set(e.x, y, e.z);
-    dummy.rotation.set(0, e.walk ? 0 : Math.sin(e.seed) * 0.3, 0);
+    let yawA = 0, lean = 0, roll = 0;
+    if (!e.walk) { // idle life: weight shifts, glances around, some check a phone, a few turn to look back along the line
+      const idle = clamp(1 - speed * 2, 0, 1), sd = e.seed;
+      yawA = Math.sin(sd) * 0.3 + Math.sin(t * 0.33 + sd * 3.1) * 0.2 * idle;
+      roll = Math.sin(t * 0.7 + sd * 1.7) * 0.035 * idle;
+      if (tr.phone) { const c = (t + hash01(sd + 2) * 16) % 16; lean = -0.3 * clamp(Math.min(c, 5 - c) * 1.5, 0, 1) * idle; }
+      else if (tr.chatty) { const c = (t + hash01(sd + 3) * 23) % 23; yawA += (hash01(sd + 4) < 0.5 ? 1 : -1) * 1.5 * clamp(Math.min(c, 4 - c) * 1.2, 0, 1) * idle; }
+    }
+    dummy.rotation.set(lean, yawA, roll);
     dummy.scale.set(tr.w, tr.h, tr.w);
     dummy.updateMatrix(); M.copy(dummy.matrix);
     const isYou = id === state.you;
@@ -480,6 +685,7 @@ function frame(now) {
   }
   for (let j = li; j < labelEls.length; j++) labelEls[j].style.display = 'none';
 
+  streetUpdate(camera.position.x, camera.position.z, t);
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
