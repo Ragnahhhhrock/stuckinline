@@ -90,6 +90,31 @@ async function phase2() {
     const s = await A.waitFor((m) => m.t === 'state' && m.pos !== null && A.msgs.indexOf(m) > fi, 4000);
     assert.ok(s.pos >= 1, 'rejoined line');
     assert.ok(s.pos <= s.total, 'position within tally');
+
+    // curtains: open before the person is served, close after; the player's own walk-through is announced
+    const youId = A.msgs.find((m) => m.t === 'state' && m.you).you;
+    const servedIdx = A.msgs.findIndex((m) => m.t === 'served' && m.id === youId);
+    assert.ok(servedIdx >= 0, 'served event names the person who reached the front');
+    assert.ok(A.msgs.findIndex((m) => m.t === 'front') > servedIdx, 'front message follows the served event');
+    const openedBefore = A.msgs.slice(0, servedIdx).some((m) => m.t === 'curtain' && m.open === true);
+    assert.ok(openedBefore, 'curtains open before they are served');
+    await A.waitFor((m) => m.t === 'curtain' && m.open === false && A.msgs.indexOf(m) > servedIdx, 3000);
+    assert.ok(A.msgs.some((m) => m.t === 'state' && typeof m.curtain === 'boolean'), 'state carries the curtain flag');
+    console.log('  ok');
+  } finally { srv.kill(); }
+}
+
+async function phase3() {
+  console.log('phase 3: the front stays visible from far back (head slice)');
+  const port = 3993;
+  const srv = await startServer(port, { TICK_MS: '1000000000', INITIAL_NPCS: '100' });
+  try {
+    const A = client(port, 'token-dddddddd'); await A.ready;
+    const s = await A.fresh();
+    assert.strictEqual(s.pos, 101, 'joined at the back');
+    assert.strictEqual(s.start, 41, 'window starts 60 places ahead of you');
+    assert.strictEqual(s.head.length, 14, 'the 14 people at the head are always sent');
+    assert.strictEqual(s.curtain, false, 'curtains start closed');
     console.log('  ok');
   } finally { srv.kill(); }
 }
@@ -97,6 +122,7 @@ async function phase2() {
 (async () => {
   await phase1();
   await phase2();
+  await phase3();
   console.log('all tests passed');
   process.exit(0);
 })().catch((e) => { console.error('FAIL:', e.message); process.exit(1); });

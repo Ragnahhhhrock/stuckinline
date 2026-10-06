@@ -17,13 +17,17 @@ body { background: #141623; }
 #pos { font-size: clamp(40px, 12vw, 64px); font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.05; }
 #tally { color: var(--quiet); font-size: 15px; margin-top: 2px; font-variant-numeric: tabular-nums; }
 
+#hint { position: fixed; top: calc(118px + var(--safe-t)); left: 24px; right: 24px; text-align: center; font-size: 13px; color: var(--quiet); opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
+#hint.on { opacity: 0.85; }
+
 #whisper { position: fixed; left: 24px; right: 24px; bottom: calc(84px + var(--safe-b)); text-align: center; font-style: italic;
   color: #cfd3e0; opacity: 0; transition: opacity 1.2s ease; pointer-events: none; text-shadow: 0 1px 10px #000c; }
 #whisper.on { opacity: 0.92; }
 
 #bar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 12px 16px calc(12px + var(--safe-b)); background: linear-gradient(to top, #0b0d14ee, #0b0d1400); }
-#status { color: var(--quiet); font-size: 14px; }
+#status { color: var(--quiet); font-size: 14px; margin-right: auto; }
+#bar button { padding: 10px 16px; }
 button { font: inherit; color: #14110a; background: var(--accent); border: 0; border-radius: 999px; padding: 12px 20px; min-height: 44px; font-weight: 600; }
 button.quiet { background: transparent; color: var(--ink); border: 1px solid #ffffff33; }
 button:active { transform: scale(0.97); }

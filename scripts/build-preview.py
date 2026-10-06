@@ -17,23 +17,22 @@ rumours = re.search(r"const RUMOURS = (\[.*?\n\]);", server_src, re.S).group(1)
 sim = """
 // ---------- simulated server (preview only: no network; same messages as the real server) ----------
 const RUMOURS = %s;
-const sim = { line: [], nextId: 1, finished: 1847, fast: false };
+const sim = { line: [], nextId: 1, finished: 1847, fast: false, timers: [] };
 const mkEntry = (kind) => ({ id: sim.nextId++, seed: Math.floor(Math.random() * 1e6), kind });
 for (let i = 0; i < 38; i++) sim.line.push(mkEntry('npc'));
 const simYou = { entry: mkEntry('you') };
 sim.line.push(simYou.entry);
 for (let i = 0; i < 26; i++) sim.line.push(mkEntry('npc'));
 let nextWhisper = Date.now() + 2500;
+let curtainOpen = false;
+const deliver = handleServer; // defined in the client above
 
-function deliver(m) {
-  if (m.t === 'state') applyState(m);
-  else if (m.t === 'whisper') showWhisper(m.text);
-  else if (m.t === 'front') showFront(m);
-}
+function simCurtain(open) { curtainOpen = open; deliver({ t: 'curtain', open }); }
 function simTick() {
   const front = sim.line.shift();
   if (front) {
     sim.finished++;
+    deliver({ t: 'served', id: front.id });
     if (front === simYou.entry) { simYou.entry = null; deliver({ t: 'front', finished: sim.finished, variant: Math.floor(Math.random() * 3) }); }
   }
   if (Math.random() < 0.3 && sim.line.length > 8) {
@@ -41,22 +40,27 @@ function simTick() {
     if (sim.line[i].kind === 'npc') sim.line.splice(i, 1);
   }
   sim.line.push(mkEntry('npc')); // arrivals keep the line populated
-  setTimeout(simTick, (sim.fast ? 350 : 3500) * (0.6 + Math.random() * 0.8));
+}
+// every minute (4s when sped up): curtains open, the head of the line walks through, curtains close
+function simCycle(first) {
+  const T = first ?? (sim.fast ? 4000 : 60000), lead = sim.fast ? 2500 : 5000, hold = sim.fast ? 3500 : 4500;
+  sim.timers.push(setTimeout(() => simCurtain(true), Math.max(0, T - lead)));
+  sim.timers.push(setTimeout(() => { simTick(); sim.timers.push(setTimeout(() => simCurtain(false), hold)); simCycle(); }, T));
 }
 function simBroadcast() {
   const L = sim.line, total = L.length;
   const i = simYou.entry ? L.indexOf(simYou.entry) : -1;
   let lo, hi;
   if (i < 0) { lo = 0; hi = Math.min(total, 60); } else { lo = Math.max(0, i - 60); hi = Math.min(total, i + 31); }
-  deliver({ t: 'state', total, finished: sim.finished, players: 1, pos: i < 0 ? null : i + 1, you: i < 0 ? null : simYou.entry.id,
+  deliver({ t: 'state', total, finished: sim.finished, players: 1, curtain: curtainOpen, head: [], pos: i < 0 ? null : i + 1, you: i < 0 ? null : simYou.entry.id,
     start: lo + 1, items: L.slice(lo, hi).map((e) => [e.id, e.seed]) });
   if (Date.now() >= nextWhisper) {
     nextWhisper = Date.now() + 7000 + Math.random() * 8000;
     deliver({ t: 'whisper', text: RUMOURS[Math.floor(Math.random() * RUMOURS.length)] });
   }
 }
-(function loop() { simBroadcast(); setTimeout(loop, sim.fast ? 400 : 1000); })();
-setTimeout(simTick, 3500);
+(function loop() { simBroadcast(); setTimeout(loop, 1000); })();
+simCycle(15000); // first curtain call after 15s so the preview shows it quickly
 
 const send = (o) => {
   if (o.t === 'rejoin' && !simYou.entry) { simYou.entry = mkEntry('you'); sim.line.push(simYou.entry); simBroadcast(); }
@@ -65,6 +69,9 @@ const send = (o) => {
 $('speed').addEventListener('click', () => {
   sim.fast = !sim.fast;
   $('speed').textContent = sim.fast ? 'Normal speed' : 'Speed up';
+  sim.timers.forEach(clearTimeout); sim.timers = [];
+  if (curtainOpen) simCurtain(false);
+  simCycle();
 });
 """ % rumours
 
@@ -78,13 +85,13 @@ js = js.replace("from 'three';", "from 'https://cdn.jsdelivr.net/npm/three@%s/bu
 body = re.search(r"<body>(.*)</body>", html, re.S).group(1)
 body = re.sub(r'<script type="module" src="main.js"></script>', "", body)
 body = body.replace('<div id="status">connecting&hellip;</div>', '<div id="status">Simulated line</div>')
-body = body.replace('<button id="find"', '<button id="speed" type="button" class="quiet">Speed up</button>\n  <button id="find"')
+body = body.replace('<footer id="bar">', '<button id="speed" type="button" class="quiet">Speed up</button>\n\n<footer id="bar">')
 
 preview_css = """
 :root { color-scheme: dark; }
 #bar { flex-wrap: wrap; justify-content: flex-end; }
 #status { flex: 1 1 auto; font-size: 13px; }
-#bar button { padding: 10px 16px; }
+#speed { position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; z-index: 5; min-height: 36px; padding: 6px 14px; font-size: 13px; background: #0b0d14aa; }
 """
 head_bits = "<title>The Line</title>\n<style>\n%s\n%s</style>" % (css, preview_css)
 script = '<script type="module">\n%s\n</script>' % js
