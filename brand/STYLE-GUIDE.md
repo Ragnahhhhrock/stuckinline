@@ -16,7 +16,7 @@ Dry, deadpan, patient. Like a stranger next to you in a queue who knows slightly
 2. **Curious, never hype.** We invite; we do not shout. No exclamation marks, no "amazing", "epic", "addictive", "revolutionary".
 3. **Questions over claims.** The brand question is: *What's your place in the line?*
 4. **Never explain the stage.** Nobody knows what is at the front, including us. Do not hint, joke about, or confirm what it is.
-5. **Warm, not cute.** Gentle absurdity, no emoji in product copy, no memes, no slang that dates.
+5. **Warm, not cute.** Gentle absurdity, no emoji in product copy (one exception, see the paid skip), no memes, no slang that dates.
 6. Second person, present tense: "You are #412." "Close the tab and you lose your place."
 
 ## Core lines (use verbatim)
@@ -53,15 +53,15 @@ Dry, deadpan, patient. Like a stranger next to you in a queue who knows slightly
 - Replies and community: calm, brief, never argue, never reveal the front.
 - Never promise rewards, prizes, rankings, or what happens at the front. The one exception for money is the paid skip, below.
 
-## The paid skip (amended 6 October 2026)
+## The paid skip (amended 6 October 2026, retitled and emoji added the same day)
 
 The owner has approved one paid product: a one-off A$5 coffee that moves you to the front of the line. Payments for this product are signed off by the owner. It is the only place the brand may mention money or moving up the line.
 
 | Role | Copy |
 | --- | --- |
-| Product name and button label (verbatim) | Buy me a coffee and go straight to the front of the line |
+| Product name and button label (verbatim) | Bribe me with a coffee and go straight to the front of the line |
 | Price line | A$5, one-off. |
-| Stripe description | Buy me a coffee. You go straight to the front of the line. One-off payment, A$5. |
+| Stripe description | Bribe me with a coffee. You go straight to the front of the line. One-off payment, A$5. |
 
 Rules for the paid skip:
 
@@ -70,7 +70,8 @@ Rules for the paid skip:
 3. Never imply the free line is a punishment or that waiting is broken. Waiting stays the game; the coffee is a thank-you with a shortcut.
 4. The coffee is for the person who made the game. Keep it dry and warm, never guilt, never pressure, never exclamation marks.
 5. One paid action on a screen, and it is quiet: a pill button in the same style as the others. Gold is for you and the single action to take, as always.
-6. Everything else in this guide still applies: sentence case, Australian English, no emoji.
+6. One coffee emoji (☕) is allowed, only at the start of the paid skip button label on the site. It is decorative (hidden from screen readers), never in the product name in Stripe, never anywhere else.
+7. Everything else in this guide still applies: sentence case, Australian English, no other emoji.
 
 ## Things we never say or show
 
