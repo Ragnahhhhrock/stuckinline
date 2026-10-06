@@ -52,6 +52,13 @@ button { font: inherit; color: #14110a; background: var(--accent); border: 0; bo
 button.quiet { background: transparent; color: var(--ink); border: 1px solid #ffffff33; }
 button:active { transform: scale(0.97); }
 
+/* the paid skip: one quiet pill above the footer, opens Stripe in a new tab so your place in the line is kept */
+#coffee { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(72px + var(--safe-b)); width: max-content; max-width: calc(100% - 32px);
+  display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 20px; border-radius: 999px; border: 1px solid #ffffff33; background: #0b0d14aa;
+  color: var(--ink); font: 600 14px/1.25 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; text-align: center; text-decoration: none; }
+#coffee:active { transform: translateX(-50%) scale(0.97); }
+#whisper { bottom: calc(128px + var(--safe-b)); }
+
 #front { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; background: #000; animation: fadein 1.6s ease forwards; }
 #front[hidden], #after[hidden], #elsewhere[hidden] { display: none; }
 @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
