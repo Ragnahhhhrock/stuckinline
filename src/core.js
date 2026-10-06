@@ -41,8 +41,8 @@ function createGame(opts = {}) {
   const CURTAIN_LEAD_MS = Math.min(5000, TICK_MS * 0.3); // curtains start opening this long before the tick
   const CURTAIN_HOLD_MS = Math.min(4500, TICK_MS * 0.3); // and stay open this long after it
   const HEAD = 14; // people at the front, always sent so the curtains can be watched
-  const AHEAD = 60; // people sent ahead of you
-  const BEHIND = 30; // and behind
+  const AHEAD = 500; // people sent ahead of you (the whole line while it is under ~1000)
+  const BEHIND = 500; // and behind
   let curtainOpen = false;
 
   let nextId = 1;

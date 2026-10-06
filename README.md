@@ -14,7 +14,7 @@ Open it on a phone (same network) or use a portrait viewport in desktop devtools
 
 ## What's in the MVP
 
-- One authoritative server holds the line; browsers only display it (Three.js, instanced avatars, portrait first).
+- One authoritative server holds the line; browsers only display it (the whole line while it is under ~1000 people, otherwise a 500-ahead / 500-behind window) (Three.js, instanced avatars, portrait first).
 - ~200 NPCs seed the line; they thin out as real players arrive (fully gone around 50 concurrent players).
 - Joining always puts you at the back. Close the tab and you lose your place after a short grace period (reloads and brief drops are forgiven). Hiding the tab starts the same timer.
 - Who you are is drawn at random each visit (each new place at the back): a grown-up, a child, a senior citizen (some with a walking stick), a person in a wheelchair, a person with a walking frame, a person on crutches, a dog or a cat. NPCs use the same mix. Shown under the tally; pets wear a gold collar when they're you.

@@ -105,16 +105,26 @@ async function phase2() {
 }
 
 async function phase3() {
-  console.log('phase 3: the front stays visible from far back (head slice)');
-  const port = 3993;
-  const srv = await startServer(port, { TICK_MS: '1000000000', INITIAL_NPCS: '100' });
+  console.log('phase 3: a short line is sent whole; a very long one is windowed with the head always sent');
+  let port = 3993;
+  let srv = await startServer(port, { TICK_MS: '1000000000', INITIAL_NPCS: '100' });
   try {
     const A = client(port, 'token-dddddddd'); await A.ready;
     const s = await A.fresh();
     assert.strictEqual(s.pos, 101, 'joined at the back');
-    assert.strictEqual(s.start, 41, 'window starts 60 places ahead of you');
-    assert.strictEqual(s.head.length, 14, 'the 14 people at the head are always sent');
+    assert.strictEqual(s.start, 1, 'the whole line is sent');
+    assert.strictEqual(s.items.length, 101, 'every person is in the window');
+    assert.strictEqual(s.head.length, 0, 'no separate head slice needed');
     assert.strictEqual(s.curtain, false, 'curtains start closed');
+  } finally { srv.kill(); }
+  port = 3994;
+  srv = await startServer(port, { TICK_MS: '1000000000', INITIAL_NPCS: '1500' });
+  try {
+    const A = client(port, 'token-eeeeeeee'); await A.ready;
+    const s = await A.fresh();
+    assert.strictEqual(s.pos, 1501, 'joined at the back');
+    assert.strictEqual(s.start, 1001, 'window starts 500 places ahead of you');
+    assert.strictEqual(s.head.length, 14, 'the 14 people at the head are always sent');
     console.log('  ok');
   } finally { srv.kill(); }
 }

@@ -3,7 +3,7 @@ import { createSound } from './audio.js';
 
 const $ = (id) => document.getElementById(id);
 const SP = 1.15; // spacing between people along the line
-const MAX_INST = 160;
+const MAX_INST = 1100; // whole line (server sends up to 1001 at once)
 
 // ---------- scene ----------
 const canvas = $('c');
