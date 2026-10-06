@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+"""Builds a single-file preview of the client with a simulated server inside the page (no network).
+Outputs preview/index.html (standalone, deployable to any static host) and
+preview/artifact.html (page body only, for the Claude artifact wrapper)."""
+import json, os, re
+
+root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+rd = lambda p: open(os.path.join(root, p), encoding="utf-8").read()
+three_ver = json.load(open(os.path.join(root, "node_modules/three/package.json")))["version"]
+
+html, css, js = rd("public/index.html"), rd("public/style.css"), rd("public/main.js")
+
+# the real server's rumours, reused by the simulator
+server_src = rd("server.js")
+rumours = re.search(r"const RUMOURS = (\[.*?\n\]);", server_src, re.S).group(1)
+
+sim = """
+// ---------- simulated server (preview only: no network; same messages as the real server) ----------
+const RUMOURS = %s;
+const sim = { line: [], nextId: 1, finished: 1847, fast: false };
+const mkEntry = (kind) => ({ id: sim.nextId++, seed: Math.floor(Math.random() * 1e6), kind });
+for (let i = 0; i < 38; i++) sim.line.push(mkEntry('npc'));
+const simYou = { entry: mkEntry('you') };
+sim.line.push(simYou.entry);
+for (let i = 0; i < 26; i++) sim.line.push(mkEntry('npc'));
+let nextWhisper = Date.now() + 2500;
+
+function deliver(m) {
+  if (m.t === 'state') applyState(m);
+  else if (m.t === 'whisper') showWhisper(m.text);
+  else if (m.t === 'front') showFront(m);
+}
+function simTick() {
+  const front = sim.line.shift();
+  if (front) {
+    sim.finished++;
+    if (front === simYou.entry) { simYou.entry = null; deliver({ t: 'front', finished: sim.finished, variant: Math.floor(Math.random() * 3) }); }
+  }
+  if (Math.random() < 0.3 && sim.line.length > 8) {
+    const i = 1 + Math.floor(Math.random() * (sim.line.length - 1));
+    if (sim.line[i].kind === 'npc') sim.line.splice(i, 1);
+  }
+  sim.line.push(mkEntry('npc')); // arrivals keep the line populated
+  setTimeout(simTick, (sim.fast ? 350 : 3500) * (0.6 + Math.random() * 0.8));
+}
+function simBroadcast() {
+  const L = sim.line, total = L.length;
+  const i = simYou.entry ? L.indexOf(simYou.entry) : -1;
+  let lo, hi;
+  if (i < 0) { lo = 0; hi = Math.min(total, 60); } else { lo = Math.max(0, i - 60); hi = Math.min(total, i + 31); }
+  deliver({ t: 'state', total, finished: sim.finished, players: 1, pos: i < 0 ? null : i + 1, you: i < 0 ? null : simYou.entry.id,
+    start: lo + 1, items: L.slice(lo, hi).map((e) => [e.id, e.seed]) });
+  if (Date.now() >= nextWhisper) {
+    nextWhisper = Date.now() + 7000 + Math.random() * 8000;
+    deliver({ t: 'whisper', text: RUMOURS[Math.floor(Math.random() * RUMOURS.length)] });
+  }
+}
+(function loop() { simBroadcast(); setTimeout(loop, sim.fast ? 400 : 1000); })();
+setTimeout(simTick, 3500);
+
+const send = (o) => {
+  if (o.t === 'rejoin' && !simYou.entry) { simYou.entry = mkEntry('you'); sim.line.push(simYou.entry); simBroadcast(); }
+  // whisper, ping, away, back: nothing to do in the preview
+};
+$('speed').addEventListener('click', () => {
+  sim.fast = !sim.fast;
+  $('speed').textContent = sim.fast ? 'Normal speed' : 'Speed up';
+});
+""" % rumours
+
+# swap the networking section for the simulator
+a = js.index("// ---------- networking ----------")
+b = js.index("// ---------- the front of the line ----------")
+js = js[:a] + sim + "\n" + js[b:]
+js = js.replace("from 'three';", "from 'https://cdn.jsdelivr.net/npm/three@%s/build/three.module.js';" % three_ver)
+
+# body markup: drop importmap/css link/module script, add preview controls
+body = re.search(r"<body>(.*)</body>", html, re.S).group(1)
+body = re.sub(r'<script type="module" src="main.js"></script>', "", body)
+body = body.replace('<div id="status">connecting&hellip;</div>', '<div id="status">Simulated line</div>')
+body = body.replace('<button id="find"', '<button id="speed" type="button" class="quiet">Speed up</button>\n  <button id="find"')
+
+preview_css = """
+:root { color-scheme: dark; }
+#bar { flex-wrap: wrap; justify-content: flex-end; }
+#status { flex: 1 1 auto; font-size: 13px; }
+#bar button { padding: 10px 16px; }
+"""
+head_bits = "<title>The Line</title>\n<style>\n%s\n%s</style>" % (css, preview_css)
+script = '<script type="module">\n%s\n</script>' % js
+
+os.makedirs(os.path.join(root, "preview"), exist_ok=True)
+open(os.path.join(root, "preview/artifact.html"), "w", encoding="utf-8").write("%s\n%s\n%s\n" % (head_bits, body, script))
+standalone = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+  '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">\n'
+  '<meta name="theme-color" content="#0b0d14">\n%s\n</head>\n<body>\n%s\n%s\n</body>\n</html>\n') % (head_bits, body, script)
+open(os.path.join(root, "preview/index.html"), "w", encoding="utf-8").write(standalone)
+print("three", three_ver, "| artifact", os.path.getsize(os.path.join(root, "preview/artifact.html")) // 1024, "KB")
