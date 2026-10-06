@@ -27,8 +27,8 @@ new_sqlite_classes = ["LineRoom"]
 # [vars]
 # TICK_MS = "60000"
 
-# Custom domain: enable only after the old DNS records for stuckinline.com (Railway) are removed in Cloudflare DNS.
-# routes = [
-#   { pattern = "stuckinline.com", custom_domain = true },
-#   { pattern = "www.stuckinline.com", custom_domain = true },
-# ]
+# Custom domains: stuckinline.com and www. (Cloudflare creates the DNS records and certificates itself.)
+routes = [
+  { pattern = "stuckinline.com", custom_domain = true },
+  { pattern = "www.stuckinline.com", custom_domain = true },
+]

@@ -10,10 +10,9 @@ The game itself is `src/core.js`. `worker/index.js` is the Cloudflare host; `ser
 3. Push to `main` (or run the "Deploy to Cloudflare" workflow). It tests, builds `dist/` and deploys with Wrangler.
    Until the domain is switched, the site is live at the `stuckinline.<your-subdomain>.workers.dev` address printed in the workflow log.
 
-## Switching stuckinline.com over
-1. In Cloudflare DNS, delete the existing `stuckinline.com` and `www` records that point at Railway.
-2. Uncomment the `routes` block at the bottom of `wrangler.toml`, commit and push. Cloudflare creates the records and certificates itself.
-3. Once it loads, stop the Railway service.
+## Domain
+stuckinline.com and www.stuckinline.com are attached to the Worker through the `routes` block in `wrangler.toml` (switched over from Railway on 6 October 2026).
+The old Railway CNAME was removed; the leftover `_railway-verify` TXT record is harmless.
 
 ## Commands
     npm start             # Node host on http://localhost:3000
