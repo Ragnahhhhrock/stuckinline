@@ -120,6 +120,53 @@ const hairMs = hairGeos.map((g) => mk(g, false, true));
 const caneGeo = mergeParts([limb([0.31, 0.64, -0.05], [0.36, 0.0, -0.17], 0.03), limb([0.31, 0.64, -0.05], [0.31, 0.67, 0.04], 0.03)]);
 const caneM = mk(caneGeo);
 
+// ---------- mobility aids: plain boxy frames in kerb and quiet, dark wheels and tips (never gold) ----------
+const AID = 0x4a4e63, AID_LIGHT = 0x8c93a6, AID_DARK = 0x0b0d14;
+const SEAT_DROP = 0.14; // seated people sit lower than standing ones
+// wheelchair: the chair, a pair of big wheels and a pair of casters (the wheels are separate so they can roll), and seated legs
+const chairGeo = mergeParts([
+  bp(Box(0.46, 0.04, 0.44), { p: [0, 0.40, 0], c: AID }), // seat
+  bp(Box(0.46, 0.40, 0.04), { p: [0, 0.62, 0.22], c: AID }), // back
+  bp(Box(0.04, 0.04, 0.30), { p: [-0.25, 0.56, 0.05], c: AID_LIGHT }), bp(Box(0.04, 0.04, 0.30), { p: [0.25, 0.56, 0.05], c: AID_LIGHT }), // armrests
+  bp(Box(0.03, 0.16, 0.03), { p: [-0.25, 0.48, -0.08], c: AID_LIGHT }), bp(Box(0.03, 0.16, 0.03), { p: [0.25, 0.48, -0.08], c: AID_LIGHT }),
+  bp(Box(0.56, 0.03, 0.03), { p: [0, 0.28, 0.12], c: AID_LIGHT }), // axle
+  limb([-0.24, 0.30, 0.05], [-0.20, 0.15, -0.34], 0.03, AID_LIGHT), limb([0.24, 0.30, 0.05], [0.20, 0.15, -0.34], 0.03, AID_LIGHT), // side frames to the casters
+  limb([-0.20, 0.32, -0.22], [-0.20, 0.15, -0.46], 0.03, AID_LIGHT), limb([0.20, 0.32, -0.22], [0.20, 0.15, -0.46], 0.03, AID_LIGHT), // footrest struts
+  bp(Box(0.40, 0.02, 0.15), { p: [0, 0.14, -0.46], c: AID }), // footplate
+  limb([-0.22, 0.78, 0.24], [-0.22, 0.82, 0.38], 0.03, AID_LIGHT), limb([0.22, 0.78, 0.24], [0.22, 0.82, 0.38], 0.03, AID_LIGHT), // push handles
+], true);
+const wheelPart = (x, y, z, r, th) => [
+  bp(new THREE.CylinderGeometry(r, r, th, 12), { r: [0, 0, Math.PI / 2], p: [x, y, z], c: AID_DARK }), // tyre
+  bp(Box(th * 1.3, r * 1.5, r * 0.12), { p: [x, y, z], c: AID_LIGHT }), bp(Box(th * 1.3, r * 0.12, r * 1.5), { p: [x, y, z], c: AID_LIGHT }), // spokes
+];
+const bigWheelGeo = mergeParts([...wheelPart(-0.28, 0, 0, 0.28, 0.04), ...wheelPart(0.28, 0, 0, 0.28, 0.04)], true); // rolls about its own centre
+const casterGeo = mergeParts([...wheelPart(-0.20, 0, 0, 0.07, 0.035), ...wheelPart(0.20, 0, 0, 0.07, 0.035)], true);
+const sitLegGeo = mergeParts([-0.105, 0.105].flatMap((x) => [
+  bp(Box(0.17, 0.15, 0.40), { p: [x, 0.60, -0.20], c: 0xffffff }), // thighs
+  bp(Box(0.15, 0.24, 0.15), { p: [x, 0.49, -0.41], c: 0xffffff }), // shins
+  bp(Box(0.18, 0.08, 0.26), { p: [x, 0.34, -0.46], c: 0x16161c }), // shoes
+]), true);
+// walking frame: four legs, side rails, front rails and grips
+const frameGeo = mergeParts([-0.30, 0.30].flatMap((x) => [
+  limb([x, 0.62, 0.04], [x, 0.62, -0.40], 0.035, AID_LIGHT), // side rail
+  limb([x, 0.62, -0.40], [x, 0.0, -0.40], 0.035, AID_LIGHT), limb([x, 0.62, 0.04], [x, 0.0, 0.04], 0.035, AID_LIGHT), // legs
+  bp(Box(0.04, 0.04, 0.12), { p: [x, 0.64, 0.0], c: AID }), // grip
+  bp(Box(0.05, 0.03, 0.05), { p: [x, 0.015, -0.40], c: AID_DARK }), bp(Box(0.05, 0.03, 0.05), { p: [x, 0.015, 0.04], c: AID_DARK }), // tips
+]).concat([
+  limb([-0.30, 0.62, -0.40], [0.30, 0.62, -0.40], 0.03, AID_LIGHT), limb([-0.30, 0.40, -0.40], [0.30, 0.40, -0.40], 0.03, AID_LIGHT),
+]), true);
+// underarm crutches: pad, shaft, hand grip and rubber tip, one each side
+const crutchGeo = mergeParts([-1, 1].flatMap((s) => [
+  limb([0.26 * s, 1.08, -0.02], [0.36 * s, 0.0, -0.20], 0.03, AID_LIGHT), // shaft
+  bp(Box(0.11, 0.03, 0.07), { p: [0.26 * s, 1.09, -0.02], c: AID }), // pad
+  bp(Box(0.04, 0.04, 0.12), { p: [0.31 * s, 0.60, -0.08], c: AID }), // grip
+  bp(Box(0.045, 0.03, 0.045), { p: [0.36 * s, 0.015, -0.20], c: AID_DARK }), // tip
+]), true);
+const chairM = mk(chairGeo, true), bigWheelM = mk(bigWheelGeo, true), casterM = mk(casterGeo, true), sitLegM = mk(sitLegGeo, true);
+const frameM = mk(frameGeo, true), crutchM = mk(crutchGeo, true);
+const ZERO = new THREE.Matrix4().makeScale(0, 0, 0); // hides a part (a seated person's standing legs)
+const AM = new THREE.Matrix4();
+
 // ---------- dogs and cats: one body mesh each (white parts take the coat colour), legs swing in diagonal pairs ----------
 const pawLeg = (x, z, hip, t) => bp(Box(t, hip, t), { p: [x, hip / 2, z], c: 0xffffff });
 const DOG_HIP = 0.40, CAT_HIP = 0.21;
@@ -152,7 +199,7 @@ const catLegB = mergeParts([pawLeg(0.06, -0.15, CAT_HIP, 0.055), pawLeg(-0.06, 0
 const collar = (r, t, y, z, tilt) => bp(new THREE.TorusGeometry(r, t, 6, 14), { r: [tilt, 0, 0], p: [0, y, z] });
 const dogM = mk(dogGeo, true), dogLAM = mk(dogLegA, true), dogLBM = mk(dogLegB, true), dogCollarM = mk(collar(0.095, 0.022, 0.59, -0.365, 0.98));
 const catM = mk(catGeo, true), catLAM = mk(catLegA, true), catLBM = mk(catLegB, true), catCollarM = mk(collar(0.07, 0.016, 0.35, -0.22, 1.25));
-const allMeshes = [shirtM, skinM, headM, legLM, legRM, faceM, noseM, glassM, beardM, stacheM, caneM, ...hairMs, dogM, dogLAM, dogLBM, dogCollarM, catM, catLAM, catLBM, catCollarM];
+const allMeshes = [shirtM, skinM, headM, legLM, legRM, faceM, noseM, glassM, beardM, stacheM, caneM, chairM, bigWheelM, casterM, sitLegM, frameM, crutchM, ...hairMs,dogM, dogLAM, dogLBM, dogCollarM, catM, catLAM, catLBM, catCollarM];
 const hiN = [0, 0, 0, 0, 0];
 const H = new THREE.Matrix4(), M = new THREE.Matrix4(), T = new THREE.Matrix4(), T2 = new THREE.Matrix4(), S = new THREE.Matrix4(), Q = new THREE.Matrix4(), F = new THREE.Matrix4();
 const YOU_COLOR = new THREE.Color(0xffcf5c);
@@ -533,8 +580,8 @@ const CAT_COATS = ['#2a2624', '#e8892e', '#9a9a9a', '#f0ece4', '#6e5a46', '#c8a8
 const COLLARS = ['#c0392b', '#2e6fd8', '#2f9e6a', '#7a3fb0', '#d8a020'].map((c) => new THREE.Color(c));
 const CANE = new THREE.Color('#5a3b22');
 // Everyone's kind comes from their seed, so each visit (a new place at the back) draws a new one at random.
-const KINDS = [['adult', 0.55], ['child', 0.15], ['senior', 0.15], ['dog', 0.08], ['cat', 0.07]];
-const KIND_NAME = { adult: 'a grown-up', child: 'a child', senior: 'a senior citizen', dog: 'a dog', cat: 'a cat' };
+const KINDS = [['adult', 0.46], ['child', 0.15], ['senior', 0.12], ['wheelchair', 0.05], ['frame', 0.04], ['crutches', 0.04], ['dog', 0.08], ['cat', 0.06]];
+const KIND_NAME = { adult: 'a grown-up', child: 'a child', senior: 'a senior citizen', wheelchair: 'a wheelchair user', frame: 'a person with a walking frame', crutches: 'a person on crutches', dog: 'a dog', cat: 'a cat' };
 function kindOf(seed) {
   let x = hash01(seed + 991.7);
   for (const [k, p] of KINDS) { if (x < p) return k; x -= p; }
@@ -547,7 +594,8 @@ function makeTraits(seed) { // everything about a person's (or pet's) look comes
     const dog = kind === 'dog', sz = dog ? 0.8 + 0.5 * r(1) : 0.9 + 0.2 * r(1), coats = dog ? DOG_COATS : CAT_COATS;
     return { kind, animal: true, sz, coat: coats[Math.floor(r(2) * coats.length)], collar: COLLARS[Math.floor(r(3) * COLLARS.length)], h: sz, lh: (dog ? 1.0 : 0.72) * sz };
   }
-  const child = kind === 'child', senior = kind === 'senior';
+  // people with an aid are any age; walking frames and wheelchairs lean older
+  const child = kind === 'child', senior = kind === 'senior' || (kind === 'frame' && r(30) < 0.7) || (kind === 'wheelchair' && r(31) < 0.3);
   let hairStyle = Math.floor(r(1) * 6); // short, long, bun, spiky, afro, bald
   if (child && hairStyle === 5) hairStyle = 0;
   if (senior && r(21) < 0.3) hairStyle = 5;
@@ -567,9 +615,11 @@ function makeTraits(seed) { // everything about a person's (or pet's) look comes
     h: child ? 0.58 + 0.12 * r(14) : senior ? 0.9 + 0.1 * r(14) : 0.92 + 0.16 * r(14),
     fx: 0.9 + 0.22 * r(15), fy: 0.96 + 0.1 * r(16), ns: child ? 0.7 : 0.8 + 0.6 * r(17),
     hd: child ? 1.32 : 1, phone: !child && r(18) < 0.2, chatty: r(19) < 0.16, // head scale: children have big heads for their size
-    stoop: senior ? 0.06 + 0.07 * r(22) : 0, cane: senior && r(23) < 0.45, // seniors lean forward a little; some have a stick
+    stoop: kind === 'frame' ? 0.10 + 0.05 * r(22) : kind === 'senior' ? 0.06 + 0.07 * r(22) : 0, // seniors lean forward a little; so do walking frame users
+    cane: kind === 'senior' && r(23) < 0.45, // some seniors have a stick
+    hurt: kind === 'crutches' ? (r(24) < 0.5 ? -1 : 1) : 0, // crutches: which leg is held up (-1 left, 1 right)
   };
-  t.lh = 1.95 * t.h + (child ? 0.1 : 0); // label height above the ground
+  t.lh = 1.95 * t.h + (child ? 0.1 : 0) - (kind === 'wheelchair' ? SEAT_DROP : 0); // label height above the ground
   return t;
 }
 
@@ -832,7 +882,10 @@ const SAY = {
   adult: ['Is this the line?', 'How long now?', 'Has it moved?', 'My feet are killing me.', 'Anyone know what’s in there?', 'Worth it, surely.', 'Just one more minute…', 'I’ve been here ages.', 'Typical.', 'Don’t push!', 'I hope it’s good.', 'Is anyone even at the front?'],
   child: ['Are we there yet?', 'I’m bored!', 'Can I have a snack?', 'How much longer?', 'Why is it so slow?', 'I need the toilet.', 'Look, a doggy!', 'Carry me!'],
   senior: ['In my day this took a minute.', 'Is it moving?', 'What’s at the front?', 'Hmm? Speak up.', 'I’ve queued for less.', 'Mind my stick.', 'Wake me when it’s my turn.', 'Back in ’62 we knew what we were queueing for.'],
-  dog: ['Woof!', 'Arf arf!', 'Sniff sniff…', 'Woof woof!', 'Walkies?', 'Bork!'],
+  wheelchair: ['Is it moving?', 'Mind the wheels.', 'I have all day.', 'Slowly, but surely.', 'Please don’t push.', 'Plenty of room here.', 'I can see everyone’s knees.'],
+  frame: ['One step at a time.', 'Mind the frame.', 'No rush.', 'Slow and steady.', 'I’ll get there.', 'Is it moving?'],
+  crutches: ['Hop, hop.', 'Mind the crutches.', 'Nearly there. Probably.', 'Is it moving?', 'I’ve been standing a while.', 'Mind my foot.'],
+  dog: ['Woof!','Arf arf!', 'Sniff sniff…', 'Woof woof!', 'Walkies?', 'Bork!'],
   cat: ['Meow.', 'Mrrp?', 'Purr…', 'Hmph.', 'Mew!', 'Mrow.'],
   bouncer: ['Wait your turn.', 'Nobody skips.', 'Move along, please.', 'Keep it moving.', 'Behind the rope, sir.', 'Not yet.'],
   next: ['Next!', 'In you go.', 'Mind the step.'],
@@ -875,7 +928,7 @@ function frame(now) {
   bouncers.forEach((b, i) => { b.scale.y = 1.3 * (1 + Math.sin(t * 1.1 + i * 2.3) * 0.006); }); // slow, steady breathing
 
   // people ease towards their target spots, so the line visibly shuffles forward; legs swing while they move
-  let n = 0, hu = 0, gi = 0, bi = 0, si = 0, ki = 0, di = 0, ci = 0;
+  let n = 0, hu = 0, gi = 0, bi = 0, si = 0, ki = 0, di = 0, ci = 0, wi = 0, fi = 0, ri = 0;
   hiN.fill(0);
   let you = null;
   for (const [id, e] of entities) {
@@ -895,7 +948,8 @@ function frame(now) {
     e.ph = (e.ph || 0) + speed * dt * 5;
     const sw = Math.sin(e.ph) * e.amp;
     if (speed > 0.4) y += Math.abs(Math.sin(e.ph)) * 0.03;
-    dummy.position.set(e.x, y, e.z);
+    const chair = tr.kind === 'wheelchair';
+    dummy.position.set(e.x, y - (chair ? SEAT_DROP : 0), e.z);
     let yawA = 0, lean = 0, roll = 0;
     if (!e.walk) { // idle life: weight shifts, glances around, some check a phone, a few turn to look back along the line
       const idle = clamp(1 - speed * 2, 0, 1), sd = e.seed;
@@ -923,8 +977,12 @@ function frame(now) {
       shirtM.setMatrixAt(hn, M); shirtM.setColorAt(hn, isYou ? YOU_COLOR : tr.shirt);
       skinM.setMatrixAt(hn, M); skinM.setColorAt(hn, tr.skin);
       T.makeTranslation(0, 0.62, 0); T2.makeTranslation(0, -0.62, 0); // legs swing from the hip
-      Q.makeRotationX(sw); F.multiplyMatrices(M, T).multiply(Q).multiply(T2); legLM.setMatrixAt(hn, F); legLM.setColorAt(hn, tr.pants);
-      Q.makeRotationX(-sw); F.multiplyMatrices(M, T).multiply(Q).multiply(T2); legRM.setMatrixAt(hn, F); legRM.setColorAt(hn, tr.pants);
+      const swL = tr.hurt === -1 ? 0.7 : sw, swR = tr.hurt === 1 ? 0.7 : -sw; // on crutches one foot is held off the ground
+      if (chair) { legLM.setMatrixAt(hn, ZERO); legRM.setMatrixAt(hn, ZERO); } // seated: the standing legs are hidden
+      else {
+        Q.makeRotationX(swL); F.multiplyMatrices(M, T).multiply(Q).multiply(T2); legLM.setMatrixAt(hn, F); legLM.setColorAt(hn, tr.pants);
+        Q.makeRotationX(swR); F.multiplyMatrices(M, T).multiply(Q).multiply(T2); legRM.setMatrixAt(hn, F); legRM.setColorAt(hn, tr.pants);
+      }
       // the head and everything on it scales about the head centre (children's heads are bigger for their size)
       T.makeTranslation(0, HY, 0); T2.makeTranslation(0, -HY, 0); S.makeScale(tr.hd, tr.hd, tr.hd);
       H.multiplyMatrices(M, T).multiply(S).multiply(T2);
@@ -939,6 +997,18 @@ function frame(now) {
       else if (tr.facial === 2) { T.makeTranslation(0, 1.345, -0.2); S.makeScale(tr.fx, 1, 1); F.multiplyMatrices(H, T).multiply(S); stacheM.setMatrixAt(si, F); stacheM.setColorAt(si, tr.fcol); si++; }
       if (tr.hairStyle < 5) { const hm = hairMs[tr.hairStyle], hi = hiN[tr.hairStyle]++; hm.setMatrixAt(hi, H); hm.setColorAt(hi, tr.hair); }
       if (tr.cane) { caneM.setMatrixAt(ki, M); caneM.setColorAt(ki, CANE); ki++; }
+      if (tr.hurt) { crutchM.setMatrixAt(ri++, M); } // crutches move with the body
+      if (chair || tr.kind === 'frame') { // the chair and the frame stay upright and only turn with the person
+        AM.makeRotationY(yawA); AM.setPosition(e.x, y + (!chair && speed > 0.4 ? Math.abs(Math.sin(e.ph)) * 0.05 : 0), e.z); // a frame is lifted with each step
+        if (chair) {
+          chairM.setMatrixAt(wi, AM);
+          e.rl = (e.rl || 0) + speed * dt; // distance rolled: the wheels turn as the line moves
+          T.makeTranslation(0, 0.28, 0.12); Q.makeRotationX(-e.rl / 0.28); F.multiplyMatrices(AM, T).multiply(Q); bigWheelM.setMatrixAt(wi, F);
+          T.makeTranslation(0, 0.07, -0.34); Q.makeRotationX(-e.rl / 0.07); F.multiplyMatrices(AM, T).multiply(Q); casterM.setMatrixAt(wi, F);
+          sitLegM.setMatrixAt(wi, M); sitLegM.setColorAt(wi, tr.pants);
+          wi++;
+        } else frameM.setMatrixAt(fi++, AM);
+      }
     }
     if (isYou) you = e;
     lbE[n] = e; lbY[n] = y;
@@ -946,6 +1016,7 @@ function frame(now) {
   }
   shirtM.count = skinM.count = headM.count = legLM.count = legRM.count = faceM.count = noseM.count = hu;
   glassM.count = gi; beardM.count = bi; stacheM.count = si; caneM.count = ki;
+  chairM.count = bigWheelM.count = casterM.count = sitLegM.count = wi; frameM.count = fi; crutchM.count = ri;
   dogM.count = dogLAM.count = dogLBM.count = dogCollarM.count = di;
   catM.count = catLAM.count = catLBM.count = catCollarM.count = ci;
   hairMs.forEach((hm, i) => { hm.count = hiN[i]; });
