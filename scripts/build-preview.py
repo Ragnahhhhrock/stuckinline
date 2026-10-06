@@ -11,7 +11,7 @@ three_ver = json.load(open(os.path.join(root, "node_modules/three/package.json")
 html, css, js = rd("public/index.html"), rd("public/style.css"), rd("public/main.js")
 
 # the real server's rumours, reused by the simulator
-server_src = rd("server.js")
+server_src = rd("src/core.js")
 rumours = re.search(r"const RUMOURS = (\[.*?\n\]);", server_src, re.S).group(1)
 
 sim = """

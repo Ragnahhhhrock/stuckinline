@@ -1270,7 +1270,7 @@ function setStatus(s) { $('status').textContent = s; }
 
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${proto}://${location.host}`);
+  ws = new WebSocket(`${proto}://${location.host}/ws`);
   ws.onopen = () => { retry = 0; ws.send(JSON.stringify({ t: 'join', token })); };
   ws.onmessage = (ev) => {
     let m; try { m = JSON.parse(ev.data); } catch { return; }

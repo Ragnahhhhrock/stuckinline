@@ -8,11 +8,17 @@
     "brand:build": "python3 scripts/build-brand-assets.py",
     "brand:check": "node scripts/brand-check.js",
     "pretest": "node scripts/brand-check.js",
-    "test": "node test/sim.js"
+    "test": "node test/sim.js",
+    "build:worker": "node scripts/build-worker-assets.js",
+    "deploy": "npm run build:worker && wrangler deploy",
+    "dev:worker": "npm run build:worker && wrangler dev"
   },
   "dependencies": {
     "three": "^0.186.1",
     "ws": "^8.22.0"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "wrangler": "^4.147.0"
+  }
 }
