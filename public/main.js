@@ -1410,8 +1410,8 @@ function openShare() {
   $('shX').href = `https://x.com/intent/post?text=${t}`;
   $('shFb').href = `https://www.facebook.com/sharer/sharer.php?u=${u}&quote=${t}`;
   $('shWa').href = `https://wa.me/?text=${t}`;
-  $('shTg').href = `https://t.me/share/url?url=${u}&text=${encodeURIComponent(text.replace(` ${SHARE_URL}`, ''))}`;
-  $('shCopy').textContent = 'Copy text';
+  $('shTh').href = `https://www.threads.com/intent/post?text=${t}`;
+  $('shCopy').textContent = 'Copy text'; $('shIg').textContent = 'Instagram';
   const native = !!navigator.share;
   $('shNative').hidden = !native;
   $('shNative').classList.toggle('primary', native); $('shX').classList.toggle('primary', !native);
@@ -1448,12 +1448,26 @@ $('shNative').addEventListener('click', async () => {
   }
   try { await navigator.share(data); } catch { /* closed without sharing */ }
 });
-$('shCopy').addEventListener('click', async () => {
+async function copyShareText() {
   const text = $('sharetext').textContent;
   try { await navigator.clipboard.writeText(text); }
   catch {
     const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
     document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch {} ta.remove();
   }
-  $('shCopy').textContent = 'Copied.';
+}
+$('shCopy').addEventListener('click', async () => { await copyShareText(); $('shCopy').textContent = 'Copied.'; });
+
+// Instagram has no web share link. On a phone the share sheet carries the picture straight to it; elsewhere the picture is saved,
+// the text is copied and Instagram opens, ready for you to post.
+$('shIg').addEventListener('click', async () => {
+  const text = $('sharetext').textContent;
+  if (shareBlob && navigator.share && navigator.canShare) {
+    const file = new File([shareBlob], 'stuck-in-line.png', { type: 'image/png' });
+    if (navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], text }); } catch { /* closed without sharing */ } return; }
+  }
+  window.open('https://www.instagram.com/', '_blank', 'noopener');
+  await copyShareText();
+  if (shareObjUrl) { const a = document.createElement('a'); a.href = shareObjUrl; a.download = 'stuck-in-line.png'; document.body.appendChild(a); a.click(); a.remove(); }
+  $('shIg').textContent = 'Saved. Paste the text.';
 });
