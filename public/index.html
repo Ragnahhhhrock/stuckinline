@@ -19,9 +19,28 @@
   <div id="clock"></div>
 </header>
 
-<div id="hint">Drag to look around &middot; arrows or scroll to walk the line &middot; pinch to zoom</div>
+<div id="focus" aria-live="polite"></div>
 
-<div id="scroll" aria-label="Scroll along the line"><button id="up" type="button" aria-label="Towards the front">&#9650;</button><button id="down" type="button" aria-label="Towards the back">&#9660;</button></div>
+<div id="hint">Drag to look around &middot; pinch to zoom &middot; tap someone to focus &middot; slide the rail to walk the line</div>
+
+<div id="scroll" role="group" aria-label="Walk along the line">
+  <button id="up" type="button" class="rbtn" aria-label="One person towards the front">&#9650;</button>
+  <div id="rail" class="rail" role="slider" aria-orientation="vertical" aria-label="Position along the line">
+    <span class="end top" id="railLo"></span><span class="end bottom" id="railHi"></span>
+    <div id="railYou" class="you-mark" title="You"></div>
+    <div id="thumb" class="thumb"><span id="railTip" class="tip"></span></div>
+  </div>
+  <button id="down" type="button" class="rbtn" aria-label="One person towards the back">&#9660;</button>
+</div>
+
+<div id="view" role="group" aria-label="Zoom and tilt">
+  <button id="zin" type="button" class="rbtn" aria-label="Zoom in">+</button>
+  <button id="zout" type="button" class="rbtn" aria-label="Zoom out">&minus;</button>
+  <div class="lab">Tilt</div>
+  <div id="tilt" class="rail short l" role="slider" aria-orientation="vertical" aria-label="Camera tilt">
+    <div id="tiltThumb" class="thumb"></div>
+  </div>
+</div>
 
 <div id="whisper" aria-live="polite"></div>
 

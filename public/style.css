@@ -24,7 +24,7 @@ body { background: #141623; }
 #tally { color: var(--quiet); font-size: 15px; margin-top: 2px; font-variant-numeric: tabular-nums; }
 #who { color: var(--accent); font-size: 13px; margin-top: 2px; opacity: 0.9; }
 
-#hint { position: fixed; top: calc(136px + var(--safe-t)); left: 24px; right: 24px; text-align: center; font-size: 13px; color: var(--quiet); opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
+#hint { position: fixed; top: calc(192px + var(--safe-t)); left: 24px; right: 24px; text-align: center; font-size: 13px; color: var(--quiet); opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
 #hint.on { opacity: 0.85; }
 
 #whisper { position: fixed; left: 24px; right: 24px; bottom: calc(84px + var(--safe-b)); text-align: center; font-style: italic;
@@ -55,8 +55,33 @@ button:active { transform: scale(0.97); }
 
 #elsewhere { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; background: #0b0d14f2; color: var(--quiet); }
 
-#scroll { position: fixed; right: 12px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 10px; z-index: 3; }
-#scroll button { width: 46px; height: 46px; min-height: 0; padding: 0; font-size: 16px; line-height: 1; background: #0b0d14aa; color: var(--ink); border: 1px solid #ffffff33; touch-action: none; user-select: none; -webkit-user-select: none; }
 #clock { color: var(--quiet); font-size: 13px; margin-top: 2px; font-variant-numeric: tabular-nums; opacity: 0.9; }
 #tally, #clock { color: #dfe3f2; text-shadow: 0 1px 4px #000c, 0 0 14px #0008; }
 #clock { opacity: 0.8; }
+/* the focus chip: who the camera is on */
+#focus { position: fixed; top: calc(150px + var(--safe-t)); left: 50%; transform: translateX(-50%); max-width: calc(100% - 140px); padding: 3px 12px; border-radius: 999px;
+  background: #0b0d14b8; border: 1px solid #ffffff22; color: var(--ink); font-size: 13px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums;
+  opacity: 0; transition: opacity 0.3s ease; pointer-events: none; z-index: 2; }
+#focus.on { opacity: 1; }
+#focus.you { background: var(--accent); color: #14110a; border-color: transparent; }
+
+/* rails: the scrubber along the line (right) and zoom + tilt (left), sitting in thumb reach at each edge */
+#scroll, #view { position: fixed; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; z-index: 3; user-select: none; -webkit-user-select: none; }
+#scroll { right: 8px; }
+#view { left: 8px; }
+.rbtn { width: 46px; height: 46px; min-height: 0; padding: 0; font-size: 18px; line-height: 1; background: #0b0d14aa; color: var(--ink); border: 1px solid #ffffff33; touch-action: none; }
+.rbtn:active { background: #ffffff22; }
+#view .lab { margin-top: 4px; font: 700 9px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.12em; text-transform: uppercase; color: var(--quiet); }
+.rail { position: relative; width: 46px; height: min(38vh, 320px); touch-action: none; cursor: grab; }
+.rail.short { height: min(20vh, 140px); }
+.rail::before { content: ""; position: absolute; left: 50%; top: 14px; bottom: 14px; width: 6px; margin-left: -3px; border-radius: 3px; background: #0b0d14aa; border: 1px solid #ffffff33; }
+.rail .end { position: absolute; left: -4px; right: -4px; text-align: center; font: 600 9px/14px ui-sans-serif, system-ui, sans-serif; color: var(--quiet); pointer-events: none; white-space: nowrap; overflow: hidden; }
+.rail .end.top { top: 0; } .rail .end.bottom { bottom: 0; }
+.thumb { position: absolute; left: 50%; top: 14px; width: 40px; height: 26px; margin-left: -20px; transform: translateY(-50%); border-radius: 999px;
+  background: var(--ink); box-shadow: 0 2px 10px #000a; pointer-events: none; }
+.thumb::after { content: ""; position: absolute; left: 12px; right: 12px; top: 50%; height: 6px; margin-top: -3px; border-top: 2px solid #14110a55; border-bottom: 2px solid #14110a55; }
+.rail.drag .thumb { background: var(--accent); }
+.you-mark { position: absolute; left: 50%; top: 14px; width: 26px; height: 4px; margin-left: -13px; border-radius: 2px; background: var(--accent); transform: translateY(-50%); pointer-events: none; box-shadow: 0 0 0 2px #0b0d14aa; }
+.tip { position: absolute; right: 46px; top: 50%; transform: translateY(-50%); padding: 2px 9px; border-radius: 999px; background: var(--accent); color: #14110a; font: 700 13px/1.4 ui-sans-serif, system-ui, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; opacity: 0; transition: opacity 0.15s ease; }
+.rail.drag .tip { opacity: 1; }
+#scroll.flat .rail, #scroll.flat .rbtn { opacity: 0.35; pointer-events: none; }

@@ -32,7 +32,7 @@ body { background: #141623; }
 #tally { color: var(--quiet); font-size: 15px; margin-top: 2px; font-variant-numeric: tabular-nums; }
 #who { color: var(--accent); font-size: 13px; margin-top: 2px; opacity: 0.9; }
 
-#hint { position: fixed; top: calc(136px + var(--safe-t)); left: 24px; right: 24px; text-align: center; font-size: 13px; color: var(--quiet); opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
+#hint { position: fixed; top: calc(192px + var(--safe-t)); left: 24px; right: 24px; text-align: center; font-size: 13px; color: var(--quiet); opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
 #hint.on { opacity: 0.85; }
 
 #whisper { position: fixed; left: 24px; right: 24px; bottom: calc(84px + var(--safe-b)); text-align: center; font-style: italic;
@@ -63,11 +63,36 @@ button:active { transform: scale(0.97); }
 
 #elsewhere { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; background: #0b0d14f2; color: var(--quiet); }
 
-#scroll { position: fixed; right: 12px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 10px; z-index: 3; }
-#scroll button { width: 46px; height: 46px; min-height: 0; padding: 0; font-size: 16px; line-height: 1; background: #0b0d14aa; color: var(--ink); border: 1px solid #ffffff33; touch-action: none; user-select: none; -webkit-user-select: none; }
 #clock { color: var(--quiet); font-size: 13px; margin-top: 2px; font-variant-numeric: tabular-nums; opacity: 0.9; }
 #tally, #clock { color: #dfe3f2; text-shadow: 0 1px 4px #000c, 0 0 14px #0008; }
 #clock { opacity: 0.8; }
+/* the focus chip: who the camera is on */
+#focus { position: fixed; top: calc(150px + var(--safe-t)); left: 50%; transform: translateX(-50%); max-width: calc(100% - 140px); padding: 3px 12px; border-radius: 999px;
+  background: #0b0d14b8; border: 1px solid #ffffff22; color: var(--ink); font-size: 13px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums;
+  opacity: 0; transition: opacity 0.3s ease; pointer-events: none; z-index: 2; }
+#focus.on { opacity: 1; }
+#focus.you { background: var(--accent); color: #14110a; border-color: transparent; }
+
+/* rails: the scrubber along the line (right) and zoom + tilt (left), sitting in thumb reach at each edge */
+#scroll, #view { position: fixed; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; z-index: 3; user-select: none; -webkit-user-select: none; }
+#scroll { right: 8px; }
+#view { left: 8px; }
+.rbtn { width: 46px; height: 46px; min-height: 0; padding: 0; font-size: 18px; line-height: 1; background: #0b0d14aa; color: var(--ink); border: 1px solid #ffffff33; touch-action: none; }
+.rbtn:active { background: #ffffff22; }
+#view .lab { margin-top: 4px; font: 700 9px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.12em; text-transform: uppercase; color: var(--quiet); }
+.rail { position: relative; width: 46px; height: min(38vh, 320px); touch-action: none; cursor: grab; }
+.rail.short { height: min(20vh, 140px); }
+.rail::before { content: ""; position: absolute; left: 50%; top: 14px; bottom: 14px; width: 6px; margin-left: -3px; border-radius: 3px; background: #0b0d14aa; border: 1px solid #ffffff33; }
+.rail .end { position: absolute; left: -4px; right: -4px; text-align: center; font: 600 9px/14px ui-sans-serif, system-ui, sans-serif; color: var(--quiet); pointer-events: none; white-space: nowrap; overflow: hidden; }
+.rail .end.top { top: 0; } .rail .end.bottom { bottom: 0; }
+.thumb { position: absolute; left: 50%; top: 14px; width: 40px; height: 26px; margin-left: -20px; transform: translateY(-50%); border-radius: 999px;
+  background: var(--ink); box-shadow: 0 2px 10px #000a; pointer-events: none; }
+.thumb::after { content: ""; position: absolute; left: 12px; right: 12px; top: 50%; height: 6px; margin-top: -3px; border-top: 2px solid #14110a55; border-bottom: 2px solid #14110a55; }
+.rail.drag .thumb { background: var(--accent); }
+.you-mark { position: absolute; left: 50%; top: 14px; width: 26px; height: 4px; margin-left: -13px; border-radius: 2px; background: var(--accent); transform: translateY(-50%); pointer-events: none; box-shadow: 0 0 0 2px #0b0d14aa; }
+.tip { position: absolute; right: 46px; top: 50%; transform: translateY(-50%); padding: 2px 9px; border-radius: 999px; background: var(--accent); color: #14110a; font: 700 13px/1.4 ui-sans-serif, system-ui, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; opacity: 0; transition: opacity 0.15s ease; }
+.rail.drag .tip { opacity: 1; }
+#scroll.flat .rail, #scroll.flat .rbtn { opacity: 0.35; pointer-events: none; }
 
 
 :root { color-scheme: dark; }
@@ -88,9 +113,28 @@ button:active { transform: scale(0.97); }
   <div id="clock"></div>
 </header>
 
-<div id="hint">Drag to look around &middot; arrows or scroll to walk the line &middot; pinch to zoom</div>
+<div id="focus" aria-live="polite"></div>
 
-<div id="scroll" aria-label="Scroll along the line"><button id="up" type="button" aria-label="Towards the front">&#9650;</button><button id="down" type="button" aria-label="Towards the back">&#9660;</button></div>
+<div id="hint">Drag to look around &middot; pinch to zoom &middot; tap someone to focus &middot; slide the rail to walk the line</div>
+
+<div id="scroll" role="group" aria-label="Walk along the line">
+  <button id="up" type="button" class="rbtn" aria-label="One person towards the front">&#9650;</button>
+  <div id="rail" class="rail" role="slider" aria-orientation="vertical" aria-label="Position along the line">
+    <span class="end top" id="railLo"></span><span class="end bottom" id="railHi"></span>
+    <div id="railYou" class="you-mark" title="You"></div>
+    <div id="thumb" class="thumb"><span id="railTip" class="tip"></span></div>
+  </div>
+  <button id="down" type="button" class="rbtn" aria-label="One person towards the back">&#9660;</button>
+</div>
+
+<div id="view" role="group" aria-label="Zoom and tilt">
+  <button id="zin" type="button" class="rbtn" aria-label="Zoom in">+</button>
+  <button id="zout" type="button" class="rbtn" aria-label="Zoom out">&minus;</button>
+  <div class="lab">Tilt</div>
+  <div id="tilt" class="rail short l" role="slider" aria-orientation="vertical" aria-label="Camera tilt">
+    <div id="tiltThumb" class="thumb"></div>
+  </div>
+</div>
 
 <div id="whisper" aria-live="polite"></div>
 
@@ -727,57 +771,107 @@ function applyState(s) {
 function startWalk(id) { const e = entities.get(id); if (e) e.walk = { t: 0 }; }
 
 // ---------- camera rig + gestures ----------
-// One finger (or left drag) orbits. Two fingers pinch to zoom and slide along the line. On a desktop:
-// the wheel (or arrow keys, or the on-screen arrows) scrolls along the line; ctrl+wheel zooms; right drag or shift+drag also slides.
-const DEFAULT_PITCH = 0.5;
-let yaw = 0, pitch = DEFAULT_PITCH, zoom = 1;
-let panOffset = 0, panFront = 0, atFront = false, focusPos = 1;
+// Touch: one finger orbits (sideways) and tilts (up/down); two fingers pinch to zoom, twist to turn and slide along the line.
+//   Tap a person to focus on them; double-tap to come back to you. Flicks keep their momentum and the view settles on a person.
+// Mouse: drag orbits and tilts; the wheel (or arrow keys) walks the line; ctrl+wheel zooms; right/middle drag or shift+drag slides.
+// On screen: the rail on the right scrubs along the line (the arrows step one person, hold to run); the left cluster zooms and tilts.
+const TAU = Math.PI * 2, DEFAULT_PITCH = 0.5, PITCH_MIN = 0.06, PITCH_MAX = 1.5, ZOOM_MIN = 0.25, ZOOM_MAX = 2.6;
+let yaw = 0, pitch = DEFAULT_PITCH, zoom = 1;              // where the gestures are steering the camera
+let viewYaw = 0, viewPitch = DEFAULT_PITCH, viewZoom = 1;  // what is drawn: eased towards the above
+let vYaw = 0, vPitch = 0, vSlide = 0;                      // momentum left over from a flick
+let panOffset = 0, panFront = 0, atFront = false, focusPos = 1, lastSlideT = 0, lastMove = 0;
 
+const setZoom = (z) => { zoom = clamp(z, ZOOM_MIN, ZOOM_MAX); };
+const setPitch = (p) => { pitch = clamp(p, PITCH_MIN, PITCH_MAX); };
 function panBounds() {
   const base = state.pos ?? state.start;
   return [state.start - base, state.start + Math.max(0, state.items.length - 1) - base];
 }
 function slide(delta) {
+  lastSlideT = performance.now();
   if (atFront) panFront = clamp(panFront + delta, -2, 11); // focus stays among the 14 people at the head
   else { const [lo, hi] = panBounds(); panOffset = clamp(panOffset + delta, lo, hi); }
 }
+function exitFront() { // leave the stage view, carrying on from wherever the camera is
+  if (!atFront) return;
+  const [lo, hi] = panBounds(), base = state.pos ?? state.start;
+  panOffset = clamp(Math.round(focusPos) - base, lo, hi); atFront = false;
+  $('tofront').textContent = 'Front';
+}
 function resetView() {
-  yaw = 0; pitch = DEFAULT_PITCH; zoom = 1; panOffset = 0; panFront = 0; atFront = false;
+  yaw = Math.round(yaw / TAU) * TAU; pitch = DEFAULT_PITCH; zoom = 1; panOffset = 0; panFront = 0; atFront = false; vYaw = vPitch = vSlide = 0;
   $('tofront').textContent = 'Front';
 }
 function hideHint() { $('hint').classList.remove('on'); }
 
+// tap a person to focus on them: slide to their place and move in a little
+const pv = new THREE.Vector3();
+function focusAt(cx, cy) {
+  const r = canvas.getBoundingClientRect();
+  let best = null, bs = 1e9;
+  for (const e of entities.values()) {
+    if (e.walk || !e.pos) continue;
+    pv.set(e.x, e.tr.lh * 0.55, e.z);
+    const dist = camera.position.distanceTo(pv);
+    pv.project(camera);
+    if (pv.z > 1 || pv.z < -1) continue;
+    const d = Math.hypot((pv.x * 0.5 + 0.5) * r.width - (cx - r.left), (-pv.y * 0.5 + 0.5) * r.height - (cy - r.top));
+    if (d > 46) continue;
+    const score = d + dist * 0.5; // among people under the finger, the nearer one wins
+    if (score < bs) { bs = score; best = e; }
+  }
+  if (!best) return false;
+  exitFront();
+  const base = state.pos ?? state.start, [lo, hi] = panBounds();
+  panOffset = clamp(best.pos - base, lo, hi); lastSlideT = performance.now(); vSlide = 0;
+  if (zoom > 0.6) setZoom(0.6);
+  return true;
+}
+
 const ptrs = new Map();
-let pinch0 = 0, zoom0 = 1, lastCy = 0, tapStart = null, lastTap = 0;
+let pinch0 = 0, zoom0 = 1, lastCy = 0, ang0 = 0, tapStart = null, lastTap = 0;
+const angleOf = (a, b) => Math.atan2(b.y - a.y, b.x - a.x);
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('pointerdown', (e) => {
   canvas.setPointerCapture(e.pointerId);
-  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  hideHint();
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, t: performance.now() });
+  hideHint(); vYaw = vPitch = vSlide = 0; // grabbing the view stops any drifting
   if (ptrs.size === 2) {
     const [a, b] = [...ptrs.values()];
-    pinch0 = Math.hypot(a.x - b.x, a.y - b.y); zoom0 = zoom; lastCy = (a.y + b.y) / 2; tapStart = null;
+    pinch0 = Math.hypot(a.x - b.x, a.y - b.y); zoom0 = zoom; lastCy = (a.y + b.y) / 2; ang0 = angleOf(a, b); tapStart = null;
   } else tapStart = { t: performance.now(), x: e.clientX, y: e.clientY };
 });
 canvas.addEventListener('pointermove', (e) => {
   const p = ptrs.get(e.pointerId);
   if (!p) return;
+  const now = performance.now(), dt = Math.max(0.008, (now - p.t) / 1000);
   const dx = e.clientX - p.x, dy = e.clientY - p.y;
-  p.x = e.clientX; p.y = e.clientY;
+  p.x = e.clientX; p.y = e.clientY; p.t = now; lastMove = now;
   if (ptrs.size === 1) {
-    if ((e.buttons & 2) || e.shiftKey) slide(-dy * 0.035 * zoom);
-    else { yaw -= dx * 0.0065; pitch = clamp(pitch + dy * 0.005, 0.1, 1.45); }
+    if (e.buttons & 6 || e.shiftKey) { // right/middle drag or shift+drag slides along the line
+      const d = -dy * 0.035 * zoom; slide(d); vSlide += (d / dt - vSlide) * 0.4;
+    } else {
+      const dyaw = -dx * 0.0065, dpit = dy * 0.005;
+      yaw += dyaw; setPitch(pitch + dpit);
+      vYaw += (dyaw / dt - vYaw) * 0.4; vPitch += (dpit / dt - vPitch) * 0.4;
+    }
   } else if (ptrs.size === 2) {
     const [a, b] = [...ptrs.values()];
-    const d = Math.hypot(a.x - b.x, a.y - b.y), cy = (a.y + b.y) / 2;
-    if (pinch0 > 0 && d > 0) zoom = clamp(zoom0 * (pinch0 / d), 0.35, 2.6);
+    const d = Math.hypot(a.x - b.x, a.y - b.y), cy = (a.y + b.y) / 2, ang = angleOf(a, b);
+    if (pinch0 > 0 && d > 0) setZoom(zoom0 * (pinch0 / d));
+    let da = ang - ang0; if (da > Math.PI) da -= TAU; else if (da < -Math.PI) da += TAU;
+    yaw += da; ang0 = ang; // twist: the scene turns with your fingers
     slide(-(cy - lastCy) * 0.035 * zoom); lastCy = cy;
   }
 });
 const endPtr = (e) => {
+  const now = performance.now();
+  const tap = e.type === 'pointerup' && tapStart && now - tapStart.t < 250 && Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y) < 10;
   ptrs.delete(e.pointerId);
-  if (tapStart && performance.now() - tapStart.t < 250 && Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y) < 10) {
-    if (performance.now() - lastTap < 320) { resetView(); lastTap = 0; } else lastTap = performance.now();
+  if (ptrs.size || now - lastMove > 90) vYaw = vPitch = vSlide = 0; // only a flick that is still moving at release carries on
+  vYaw = clamp(vYaw, -7, 7); vPitch = clamp(vPitch, -4, 4); vSlide = clamp(vSlide, -45, 45);
+  if (tap) {
+    if (now - lastTap < 320) { resetView(); lastTap = 0; } else { lastTap = now; focusAt(e.clientX, e.clientY); }
   }
   tapStart = null;
 };
@@ -785,25 +879,106 @@ canvas.addEventListener('pointerup', endPtr);
 canvas.addEventListener('pointercancel', endPtr);
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault(); hideHint();
-  if (e.ctrlKey || e.metaKey) zoom = clamp(zoom * Math.exp(e.deltaY * 0.01), 0.35, 2.6); // pinch on a trackpad, or ctrl+wheel
+  if (e.ctrlKey || e.metaKey) setZoom(zoom * Math.exp(e.deltaY * 0.01)); // pinch on a trackpad, or ctrl+wheel
   else slide(clamp(e.deltaY, -120, 120) * 0.012 * Math.max(0.6, zoom)); // scroll down = towards the back of the line, up = towards the front
 }, { passive: false });
 addEventListener('keydown', (e) => {
   if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
-  const k = e.key === 'ArrowUp' || e.key === 'PageUp' ? -1 : e.key === 'ArrowDown' || e.key === 'PageDown' ? 1 : 0;
-  if (k) { e.preventDefault(); hideHint(); slide(k * (e.key.startsWith('Page') ? 8 : 1.5)); }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  let used = true;
+  switch (e.key) {
+    case 'ArrowUp': case 'ArrowDown': {
+      const up = e.key === 'ArrowUp';
+      if (e.shiftKey) setPitch(pitch + (up ? 0.12 : -0.12)); else slide(up ? -1 : 1); // up = towards the front
+      break;
+    }
+    case 'PageUp': slide(-8); break;
+    case 'PageDown': slide(8); break;
+    case 'ArrowLeft': yaw += 0.2; break;
+    case 'ArrowRight': yaw -= 0.2; break;
+    case '+': case '=': setZoom(zoom * 0.85); break;
+    case '-': case '_': setZoom(zoom / 0.85); break;
+    case 'Home': resetView(); break;
+    case 'End': if (!atFront) $('tofront').click(); break;
+    default: used = false;
+  }
+  if (used) { e.preventDefault(); hideHint(); }
 });
-// on-screen arrows (hold to keep scrolling): up = towards the front, down = towards the back
-for (const [id, dir] of [['up', -1], ['down', 1]]) {
-  const b = $(id); let iv = 0;
-  const stop = () => { clearInterval(iv); iv = 0; };
-  b.addEventListener('pointerdown', (e) => { e.preventDefault(); hideHint(); slide(dir * 1.2); stop(); iv = setInterval(() => slide(dir * 0.4), 50); });
-  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, stop);
+
+// press-and-hold buttons: act once straight away, then keep going while held
+function holdButton(el, step, first, rep) {
+  let to = 0, iv = 0;
+  const stop = () => { clearTimeout(to); clearInterval(iv); to = iv = 0; };
+  el.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); hideHint(); vSlide = 0; stop(); step(first);
+    to = setTimeout(() => { iv = setInterval(() => step(rep), 50); }, 330);
+  });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) el.addEventListener(ev, stop);
 }
+holdButton($('up'), (a) => slide(-a), 1, 0.4);   // towards the front, one person per tap
+holdButton($('down'), (a) => slide(a), 1, 0.4);  // towards the back
+holdButton($('zin'), (a) => setZoom(zoom * a), 0.8, 0.96);
+holdButton($('zout'), (a) => setZoom(zoom / a), 0.8, 0.96);
+
+// vertical rails: press or drag anywhere on one to set its value (0 at the top, 1 at the bottom)
+const RAIL_PAD = 14;
+function bindRail(el, onFrac) {
+  const rail = { dragging: false };
+  const frac = (e) => { const r = el.getBoundingClientRect(); return clamp((e.clientY - r.top - RAIL_PAD) / Math.max(1, r.height - RAIL_PAD * 2), 0, 1); };
+  el.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); el.setPointerCapture(e.pointerId); rail.dragging = true; el.classList.add('drag'); hideHint(); onFrac(frac(e));
+  });
+  el.addEventListener('pointermove', (e) => { if (rail.dragging) onFrac(frac(e)); });
+  const end = () => { rail.dragging = false; el.classList.remove('drag'); };
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(ev, end);
+  return rail;
+}
+const railEl = $('rail'), scrub = bindRail(railEl, (f) => { // scrub along the line (the loaded stretch around you)
+  exitFront();
+  const lo = state.start, hi = state.start + Math.max(0, state.items.length - 1), base = state.pos ?? state.start, [a, b] = panBounds();
+  panOffset = clamp(lo + f * (hi - lo) - base, a, b); vSlide = 0; lastSlideT = performance.now();
+});
+bindRail($('tilt'), (f) => { setPitch(PITCH_MAX - f * (PITCH_MAX - PITCH_MIN)); vPitch = 0; }); // top = bird's-eye, bottom = eye level
+
+const railPos = (f) => `calc(${RAIL_PAD}px + (100% - ${RAIL_PAD * 2}px) * ${f.toFixed(4)})`;
+let railKey = '';
+function updateRails() {
+  const lo = state.start, hi = lo + Math.max(0, state.items.length - 1), span = hi - lo, rp = Math.round(focusPos);
+  const f = atFront || span < 1 ? 0 : clamp((focusPos - lo) / span, 0, 1);
+  const yf = state.pos != null && span >= 1 ? (state.pos - lo) / span : -1;
+  const pf = (PITCH_MAX - viewPitch) / (PITCH_MAX - PITCH_MIN);
+  const key = `${f.toFixed(3)}|${yf.toFixed(3)}|${pf.toFixed(3)}|${lo}|${hi}|${rp}`;
+  if (key === railKey) return;
+  railKey = key;
+  $('scroll').classList.toggle('flat', span < 1);
+  $('thumb').style.top = railPos(f);
+  $('railYou').style.top = railPos(clamp(yf, 0, 1)); $('railYou').style.display = yf >= 0 && yf <= 1 ? '' : 'none';
+  $('railTip').textContent = `#${rp.toLocaleString()}`;
+  $('railLo').textContent = `#${lo.toLocaleString()}`; $('railHi').textContent = `#${hi.toLocaleString()}`;
+  $('tiltThumb').style.top = railPos(pf);
+}
+
+// the chip under the HUD says who the camera is on, and how far they are from you
+const focusEl = $('focus'); let focusTxt = '', focusYou = false;
+function updateFocusChip(list, count) {
+  const rp = Math.round(focusPos);
+  let e = null;
+  for (let i = 0; i < count; i++) if (list[i].pos === rp && !list[i].walk) { e = list[i]; break; }
+  let txt = '', you = false;
+  if (e) {
+    const rel = state.pos != null ? rp - state.pos : null;
+    you = rel === 0;
+    txt = `#${rp.toLocaleString()} · ${KIND_NAME[e.tr.kind]}`;
+    if (you) txt += ' · you'; else if (rel != null) txt += ` · ${Math.abs(rel)} ${rel < 0 ? 'ahead of' : 'behind'} you`;
+  }
+  if (txt !== focusTxt) { focusTxt = txt; focusEl.textContent = txt; focusEl.classList.toggle('on', !!txt); }
+  if (you !== focusYou) { focusYou = you; focusEl.classList.toggle('you', you); }
+}
+
 $('find').addEventListener('click', resetView);
 $('tofront').addEventListener('click', () => {
   if (atFront) { resetView(); return; }
-  atFront = true; panFront = 0; yaw = 0; pitch = 0.34; zoom = 0.9;
+  atFront = true; panFront = 0; vSlide = 0; yaw = Math.round(yaw / TAU) * TAU; setPitch(0.34); setZoom(0.9);
   $('tofront').textContent = 'Back to me';
 });
 setTimeout(() => $('hint').classList.add('on'), 1200);
@@ -819,7 +994,7 @@ function labelEl(i) {
   return labelEls[i];
 }
 let lastT = 0, elapsed = 0;
-if (location.hash.startsWith('#debug')) window.__line = { get open() { return curtainAmt; }, get yaw() { return yaw; }, get atFront() { return atFront; }, get walkers() { return [...entities.values()].filter((e) => e.walk).length; } };
+if (location.hash.startsWith('#debug')) window.__line = { get open() { return curtainAmt; }, get yaw() { return yaw; }, get pitch() { return pitch; }, get zoom() { return zoom; }, get focus() { return focusPos; }, get atFront() { return atFront; }, get walkers() { return [...entities.values()].filter((e) => e.walk).length; } };
 
 function resize() {
   const w = canvas.clientWidth, h = canvas.clientHeight;
@@ -924,16 +1099,36 @@ function frame(now) {
   marker.visible = ring.visible = !!you;
   if (you) { marker.position.set(you.x, (you.z < 0.6 ? FLOOR : 0) + you.tr.lh + 0.1 + Math.sin(t * 3) * 0.05, you.z); ring.position.set(you.x, 0.02, you.z); }
 
+  // momentum: after a flick the view keeps turning / sliding and slows to a stop; with nothing touching it, it settles on a person
+  const touching = ptrs.size > 0 || scrub.dragging;
+  if (!touching) {
+    if (Math.abs(vYaw) > 0.02 || Math.abs(vPitch) > 0.02) {
+      const dec = Math.exp(-dt * 3.2);
+      yaw += vYaw * dt; setPitch(pitch + vPitch * dt); vYaw *= dec; vPitch *= dec;
+      if (pitch <= PITCH_MIN || pitch >= PITCH_MAX) vPitch = 0;
+    } else vYaw = vPitch = 0;
+    if (Math.abs(vSlide) > 0.3) { slide(vSlide * dt); vSlide *= Math.exp(-dt * 4); } else vSlide = 0;
+    if (!vSlide && performance.now() - lastSlideT > 450) {
+      const ks = 1 - Math.exp(-dt * 7);
+      if (atFront) panFront += (Math.round(panFront) - panFront) * ks; else panOffset += (Math.round(panOffset) - panOffset) * ks;
+    }
+  }
+  viewYaw += (yaw - viewYaw) * (1 - Math.exp(-dt * 18));
+  viewPitch += (pitch - viewPitch) * (1 - Math.exp(-dt * 14));
+  viewZoom += (zoom - viewZoom) * (1 - Math.exp(-dt * 9));
+
   // camera orbits the focus point (you, or whoever you slid to); "Front" flies it to the stage from anywhere in the line
   if (!atFront) { const [lo, hi] = panBounds(); panOffset = clamp(panOffset, lo, hi); }
   const target = atFront ? 3 + panFront : (state.pos ?? state.start) + panOffset;
   const diff = target - focusPos;
   focusPos += diff * (1 - Math.exp(-dt * (3 + Math.min(10, Math.abs(diff) * 0.01))));
   const fz = focusPos * SP, fx = curveX(focusPos);
-  const d = 12.5 * zoom, cp = Math.cos(pitch), sp = Math.sin(pitch);
-  camera.position.set(fx + Math.sin(yaw) * cp * d, 0.9 + sp * d, fz + Math.cos(yaw) * cp * d);
-  const ahead = atFront ? 0 : 14 * cp; // look past the focus so it sits in the lower third (at the front: look straight at it)
-  camera.lookAt(fx - Math.sin(yaw) * ahead, atFront ? 1.8 : 0.6, fz - Math.cos(yaw) * ahead);
+  const d = 12.5 * viewZoom, cp = Math.cos(viewPitch), sp = Math.sin(viewPitch);
+  camera.position.set(fx + Math.sin(viewYaw) * cp * d, 0.9 + sp * d, fz + Math.cos(viewYaw) * cp * d);
+  // look past the focus so it sits in the lower third; zoomed in on someone, centre them at chest height instead (at the front: look straight at it)
+  const close = clamp((1 - viewZoom) / 0.6, 0, 1);
+  const ahead = atFront ? 0 : 14 * cp * (1 - 0.75 * close);
+  camera.lookAt(fx - Math.sin(viewYaw) * ahead, atFront ? 1.8 : 0.6 + 0.45 * close, fz - Math.cos(viewYaw) * ahead);
   ground.position.set(camera.position.x, 0, camera.position.z);
 
   // labels: nearer ones are larger and stand on top; far ones fade out so the distant line stays readable
@@ -962,6 +1157,7 @@ function frame(now) {
     el.style.transform = `translate(${((v3.x * 0.5 + 0.5) * W).toFixed(1)}px, ${((-v3.y * 0.5 + 0.5) * Hh).toFixed(1)}px) translate(-50%, -100%) scale(${sc.toFixed(2)})`;
   }
   for (let j = li; j < labelEls.length; j++) labelEls[j].style.display = 'none';
+  updateFocusChip(lbE, n); updateRails();
 
   applyTime(worldHour());
   streetUpdate(camera.position.x, camera.position.z, t);
