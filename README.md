@@ -17,7 +17,7 @@ Open it on a phone (same network) or use a portrait viewport in desktop devtools
 - One authoritative server holds the line; browsers only display it (Three.js, instanced avatars, portrait first).
 - ~800 NPCs seed the line; they thin out as real players arrive (fully gone around 50 concurrent players).
 - Joining always puts you at the back. Close the tab and you lose your place after a short grace period (reloads and brief drops are forgiven). Hiding the tab starts the same timer.
-- Who you are is drawn at random each visit (each new place at the back): a grown-up, a child, a senior citizen (some with a walking stick), a dog or a cat. NPCs use the same mix. Shown under the tally; pets wear a gold collar when they're you.
+- Who you are is drawn at random each visit (each new place at the back): a grown-up, a child, a senior citizen (some with a walking stick), a person in a wheelchair, a person with a walking frame, a person on crutches, a dog or a cat. NPCs use the same mix. Shown under the tally; pets wear a gold collar when they're you.
 - Live position and tally, drifting rumours, and a stage at the front: once a minute the velvet curtains part, the person at the head walks into the dark, and the curtains close. Nobody sees what is inside.
 - Reaching the front: an ambiguous scene (3 variants), an all-time count, one whisper to leave, then rejoin at the back.
 - Controls: drag to orbit and look from any angle; two fingers pinch to zoom and slide along the line (desktop: wheel zooms, right-drag or shift-drag slides). "Front" flies the camera to the stage from anywhere in the line; double-tap or "Find me" recentres.

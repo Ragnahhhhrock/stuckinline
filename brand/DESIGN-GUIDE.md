@@ -46,7 +46,7 @@ Rules of use:
 
 - Everything is **boxy**: rectangles with soft corners, spheres only for eyes and heads on pets. People are a head box, a torso box, two arm boxes, two leg boxes.
 - UI uses **pills**: fully rounded buttons and chips, 44px minimum touch height.
-- Characters: grown-ups, children, senior citizens (some with a stick), dogs and cats. Everyone queues in single file, seen in true perspective toward the stage. Faces are simple: two eyes, brows, a small flat mouth. The expression is patient with a flicker of suspicion.
+- Characters: grown-ups, children, senior citizens (some with a stick), people in wheelchairs, people with walking frames, people on crutches, dogs and cats. Mobility aids are plain boxy frames in `kerb` and `quiet` with dark wheels and tips. They are never gold unless they belong to you, never a joke, and never the whole character. Everyone queues in single file, seen in true perspective toward the stage. Faces are simple: two eyes, brows, a small flat mouth. The expression is patient with a flicker of suspicion.
 - **You** are always the one who is marked: gold cone above the head, gold ring at the feet, a gold place pill (`#412` in game, `#?` in teasers).
 - Perspective: one vanishing point at the stage. Figures shrink with distance, street kerbs converge on the stage.
 - The stage: parted velvet curtains, a brass bar, a bright opening. Nobody is ever shown inside it.
