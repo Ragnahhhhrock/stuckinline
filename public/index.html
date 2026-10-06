@@ -52,6 +52,8 @@
   <div id="clock"></div>
 </header>
 
+<button id="sharebtn" type="button" class="quiet" hidden aria-haspopup="dialog" aria-controls="share">Share</button>
+
 <div id="focus" aria-live="polite"></div>
 
 <div id="hint">Drag to look around &middot; pinch to zoom &middot; tap someone to focus &middot; slide the rail to walk the line</div>
@@ -112,6 +114,27 @@
       <li>Then join the back of the line.</li>
     </ol>
     <button id="rulesclose" type="button">Back to the line</button>
+  </div>
+</section>
+
+<section id="share" role="dialog" aria-modal="true" aria-labelledby="shareTitle" hidden>
+  <div class="card">
+    <h2 id="shareTitle">Share your place</h2>
+    <div id="shot">
+      <img id="shotimg" alt="" hidden>
+      <div id="shotwait">Finding you&hellip;</div>
+    </div>
+    <p id="sharetext"></p>
+    <div id="shares">
+      <button id="shNative" type="button" class="sbtn wide" hidden>Share</button>
+      <a id="shX" class="sbtn" href="#" target="_blank" rel="noopener noreferrer">Post on X</a>
+      <a id="shFb" class="sbtn" href="#" target="_blank" rel="noopener noreferrer">Facebook</a>
+      <a id="shWa" class="sbtn" href="#" target="_blank" rel="noopener noreferrer">WhatsApp</a>
+      <a id="shTg" class="sbtn" href="#" target="_blank" rel="noopener noreferrer">Telegram</a>
+      <button id="shCopy" type="button" class="sbtn">Copy text</button>
+      <a id="shSave" class="sbtn off" href="#" download="stuck-in-line.png" aria-disabled="true">Save image</a>
+    </div>
+    <button id="shareclose" type="button" class="quiet wide">Back to the line</button>
   </div>
 </section>
 

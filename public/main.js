@@ -651,6 +651,7 @@ function applyState(s) {
   const who = me ? `You are ${KIND_NAME[me.tr.kind]}` : '';
   if ($('who').textContent !== who) $('who').textContent = who;
   stage.visible = s.start <= 12 || !!(s.head && s.head.length);
+  syncShareBtn();
 }
 
 function startWalk(id) { const e = entities.get(id); if (e) e.walk = { t: 0 }; }
@@ -1007,6 +1008,7 @@ function soundTick(dt, n, t) {
 }
 
 let lastT = 0, elapsed = 0;
+let shareJob = null; // a picture of you in the line, waiting for the camera to settle (see the share section)
 if (location.hash.startsWith('#debug')) window.__line = { get open() { return curtainAmt; }, get yaw() { return yaw; }, get pitch() { return pitch; }, get zoom() { return zoom; }, get focus() { return focusPos; }, get atFront() { return atFront; }, get walkers() { return [...entities.values()].filter((e) => e.walk).length; } };
 
 function resize() {
@@ -1231,6 +1233,7 @@ function frame(now) {
   applyTime(worldHour());
   streetUpdate(camera.position.x, camera.position.z, t);
   renderer.render(scene, camera);
+  if (shareJob) tickShare(now);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
@@ -1292,6 +1295,7 @@ function showFront(m) {
   const sec = $('front');
   sec.className = `v${m.variant ?? 0}`;
   sec.hidden = false;
+  syncShareBtn();
   $('after').hidden = true;
   $('finished').textContent = `${m.finished.toLocaleString()} have reached the front.`;
   $('wtext').value = '';
@@ -1308,6 +1312,7 @@ $('wsend').addEventListener('click', () => {
 $('rejoin').addEventListener('click', () => {
   send({ t: 'rejoin' });
   $('front').hidden = true;
+  syncShareBtn();
   resetView();
 });
 
@@ -1318,3 +1323,137 @@ $('rulesbtn').addEventListener('click', () => setRules(true));
 $('rulesclose').addEventListener('click', () => setRules(false));
 rulesEl.addEventListener('click', (e) => { if (e.target === rulesEl) setRules(false); });
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && !rulesEl.hidden) setRules(false); });
+
+// ---------- share: a picture of you in the line, and the post that goes with it ----------
+// The picture is made on the spot: the live scene drawn once from a fixed angle behind you, with the brand frame around it
+// (question on top, your place in gold above your head, stuckinline.com below). Nothing is sent anywhere until you pick a button.
+const SHARE_URL = 'https://stuckinline.com';
+const SHARE_W = 1080, SHARE_H = 1350, SHARE_TOP = 280, SHARE_BOT = 160, SHARE_SCENE = SHARE_H - SHARE_TOP - SHARE_BOT;
+const SHARE_FONT = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+const shareEl = $('share'), shareBtn = $('sharebtn');
+const capCam = new THREE.PerspectiveCamera(52, SHARE_W / SHARE_SCENE, 0.1, 200), capV = new THREE.Vector3();
+let shareBlob = null, shareObjUrl = '';
+
+const shareText = (pos) => `I'm #${pos.toLocaleString()} in the line. What place are you? ${SHARE_URL}`;
+function syncShareBtn() { $('sharebtn').hidden = !(state.pos && $('front').hidden); }
+
+function roundRect(g, x, y, w, h, r) {
+  g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+}
+function goldPill(g, cx, cy, text, size, padX, h) { // centred on (cx, cy); returns the box it took
+  g.font = `800 ${size}px ${SHARE_FONT}`;
+  const w = Math.ceil(g.measureText(text).width) + padX * 2;
+  roundRect(g, cx - w / 2, cy - h / 2, w, h, h / 2); g.fillStyle = '#ffcf5c'; g.fill();
+  g.fillStyle = '#14110a'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, cx, cy + size * 0.04);
+  return { w, h };
+}
+
+function buildShareImage() {
+  const me = state.you != null ? entities.get(state.you) : null;
+  if (!me || !state.pos) throw new Error('not in the line');
+  const out = document.createElement('canvas'); out.width = SHARE_W; out.height = SHARE_H;
+  const g = out.getContext('2d');
+  g.fillStyle = '#0b0d14'; g.fillRect(0, 0, SHARE_W, SHARE_H);
+
+  // the scene: one frame from behind you, drawn at full size, then the live view is put back
+  const ya = 0.2, pa = 0.42, d = 8.4, cp = Math.cos(pa);
+  capCam.position.set(me.x + Math.sin(ya) * cp * d, 0.9 + Math.sin(pa) * d, me.z + Math.cos(ya) * cp * d);
+  capCam.lookAt(me.x - Math.sin(ya) * 4.5, 1.0, me.z - Math.cos(ya) * 4.5);
+  capCam.updateMatrixWorld();
+  const pr = renderer.getPixelRatio();
+  renderer.setPixelRatio(1); renderer.setSize(SHARE_W, SHARE_SCENE, false);
+  renderer.render(scene, capCam);
+  g.drawImage(canvas, 0, SHARE_TOP);
+  renderer.setPixelRatio(pr); renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+  renderer.render(scene, camera);
+
+  // your place, in gold, above your head
+  capV.set(me.x, (me.z < 0.6 ? FLOOR : 0) + me.tr.lh + 1.05, me.z).project(capCam);
+  const px = (capV.x * 0.5 + 0.5) * SHARE_W, py = SHARE_TOP + (-capV.y * 0.5 + 0.5) * SHARE_SCENE;
+  g.font = `800 56px ${SHARE_FONT}`;
+  const half = (g.measureText(`#${state.pos.toLocaleString()}`).width + 52) / 2;
+  goldPill(g, clamp(px, half + 24, SHARE_W - half - 24), clamp(py, SHARE_TOP + 60, SHARE_TOP + SHARE_SCENE - 60), `#${state.pos.toLocaleString()}`, 56, 26, 84);
+
+  // the frame: the question on top, the address and the wordmark below
+  g.textAlign = 'left'; g.textBaseline = 'alphabetic'; g.fillStyle = '#e9e6dc'; g.font = `800 76px ${SHARE_FONT}`;
+  g.fillText("What's your place", 64, 140); g.fillText('in the line?', 64, 222);
+  const by = SHARE_H - SHARE_BOT / 2;
+  goldPill(g, 64 + 150 + 30, by, 'stuckinline.com', 34, 30, 76);
+  g.fillStyle = '#8c93a6'; g.font = `700 22px ${SHARE_FONT}`; g.textAlign = 'right'; g.textBaseline = 'middle';
+  if ('letterSpacing' in g) g.letterSpacing = '4px';
+  g.fillText('STUCK IN LINE', SHARE_W - 64, by);
+  return out;
+}
+
+// the picture waits a moment for the camera to settle back on you (and the street around you to exist), then is taken inside the frame loop
+function tickShare(now) {
+  const j = shareJob;
+  if (now < j.ready) return;
+  const settled = !atFront && Math.abs(focusPos - (state.pos ?? state.start)) < 0.5;
+  if (!settled && now < j.ready + 3000) return;
+  shareJob = null;
+  try { j.done(buildShareImage()); } catch (err) { j.fail(err); }
+}
+
+function clearShot() {
+  if (shareObjUrl) URL.revokeObjectURL(shareObjUrl);
+  shareObjUrl = ''; shareBlob = null;
+  $('shotimg').hidden = true; $('shotimg').removeAttribute('src'); $('shotwait').hidden = false; $('shotwait').textContent = 'Finding you\u2026';
+  $('shSave').classList.add('off'); $('shSave').setAttribute('aria-disabled', 'true'); $('shSave').removeAttribute('href');
+}
+
+function openShare() {
+  if (!state.pos) return;
+  const pos = state.pos, text = shareText(pos), t = encodeURIComponent(text), u = encodeURIComponent(SHARE_URL);
+  clearShot();
+  $('sharetext').textContent = text;
+  $('shX').href = `https://x.com/intent/post?text=${t}`;
+  $('shFb').href = `https://www.facebook.com/sharer/sharer.php?u=${u}&quote=${t}`;
+  $('shWa').href = `https://wa.me/?text=${t}`;
+  $('shTg').href = `https://t.me/share/url?url=${u}&text=${encodeURIComponent(text.replace(` ${SHARE_URL}`, ''))}`;
+  $('shCopy').textContent = 'Copy text';
+  const native = !!navigator.share;
+  $('shNative').hidden = !native;
+  $('shNative').classList.toggle('primary', native); $('shX').classList.toggle('primary', !native);
+  shareEl.hidden = false; $('shareclose').focus();
+
+  resetView(); // back to you; the picture is taken once the camera has settled
+  let mine = null;
+  const job = new Promise((done, fail) => { mine = shareJob = { ready: performance.now() + 250, done, fail }; });
+  const timer = setTimeout(() => { if (shareJob === mine) { shareJob = null; mine.fail(new Error('timed out')); } }, 8000);
+  job.then((c) => new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('no image'))), 'image/png')))
+    .then((blob) => {
+      if (shareEl.hidden) return; // closed while it was being made
+      shareBlob = blob; shareObjUrl = URL.createObjectURL(blob);
+      $('shotimg').src = shareObjUrl; $('shotimg').alt = `You in the line, marked #${pos.toLocaleString()}.`; $('shotimg').hidden = false; $('shotwait').hidden = true;
+      $('shSave').href = shareObjUrl; $('shSave').classList.remove('off'); $('shSave').removeAttribute('aria-disabled');
+    })
+    .catch(() => { if (!shareEl.hidden) $('shotwait').textContent = 'No picture this time. The text still works.'; })
+    .finally(() => clearTimeout(timer));
+}
+function closeShare() {
+  shareEl.hidden = true; shareJob = null; clearShot(); shareBtn.focus();
+}
+
+shareBtn.addEventListener('click', openShare);
+$('shareclose').addEventListener('click', closeShare);
+shareEl.addEventListener('click', (e) => { if (e.target === shareEl) closeShare(); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !shareEl.hidden) closeShare(); });
+
+$('shNative').addEventListener('click', async () => {
+  const data = { text: $('sharetext').textContent };
+  if (shareBlob) {
+    const file = new File([shareBlob], 'stuck-in-line.png', { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) data.files = [file];
+  }
+  try { await navigator.share(data); } catch { /* closed without sharing */ }
+});
+$('shCopy').addEventListener('click', async () => {
+  const text = $('sharetext').textContent;
+  try { await navigator.clipboard.writeText(text); }
+  catch {
+    const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch {} ta.remove();
+  }
+  $('shCopy').textContent = 'Copied.';
+});
