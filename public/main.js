@@ -227,7 +227,7 @@ function makeCurtain(side) { // side -1 = left panel, +1 = right panel; each sca
   }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   g.computeVertexNormals();
-  const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.FrontSide })); // the rear of the velvet is never shown
+  const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
   m.position.set(side * PW, FLOOR, 0);
   return m;
 }
@@ -238,20 +238,8 @@ stage.add(new THREE.Mesh(new THREE.BoxGeometry(2 * PW + 1.2, FLOOR, 3.4).transla
 stage.add(new THREE.Mesh(new THREE.BoxGeometry(2 * PW + 0.4, 0.8, 0.4).translate(0, FLOOR + CH + 0.1, 0), new THREE.MeshLambertMaterial({ color: 0x6a1428 })));
 stage.add(new THREE.Mesh(new THREE.BoxGeometry(2 * PW + 0.5, 0.08, 0.46).translate(0, FLOOR + CH - 0.32, 0), new THREE.MeshLambertMaterial({ color: 0xc9a24a, emissive: 0x3a2a08 })));
 for (const sx of [-1, 1]) stage.add(new THREE.Mesh(new THREE.BoxGeometry(0.3, CH + 1.3, 0.5).translate(sx * (PW + 0.25), (CH + 1.3) / 2, 0), wood));
-// whatever is past the curtains is dark; anyone who walks beyond this veil is simply gone
-stage.add(new THREE.Mesh(new THREE.PlaneGeometry(2 * PW + 0.2, CH + 0.4).translate(0, FLOOR + CH / 2, -0.9),
-  new THREE.MeshBasicMaterial({ color: 0x050507, transparent: true, opacity: 0.8, depthWrite: true })));
-// one black cube sits far back in the dark: only glimpsed through the veil while the curtains are parted, never close, never lit by anything of its own
-const CUBE = 1.4;
-const cube = new THREE.Group();
-const cubeMat = new THREE.MeshLambertMaterial({ color: 0x050507, transparent: true, opacity: 0 });
-const cubeEdgeMat = new THREE.LineBasicMaterial({ color: 0x4a4e63, transparent: true, opacity: 0 });
-cube.add(new THREE.Mesh(new THREE.BoxGeometry(CUBE, CUBE, CUBE), cubeMat));
-cube.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(CUBE, CUBE, CUBE)), cubeEdgeMat));
-cube.position.set(0.7, FLOOR + CUBE / 2, -2.0);
-cube.rotation.y = 0.5;
-cube.visible = false;
-stage.add(cube);
+// whatever is past the curtains is dark; anyone who walks beyond this panel is simply gone
+stage.add(new THREE.Mesh(new THREE.PlaneGeometry(2 * PW + 0.2, CH + 0.4).translate(0, FLOOR + CH / 2, -0.9), new THREE.MeshBasicMaterial({ color: 0x000000 })));
 const glowTex = (() => {
   const c = document.createElement('canvas'); c.width = c.height = 128;
   const g = c.getContext('2d'), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
@@ -673,7 +661,6 @@ function startWalk(id) { const e = entities.get(id); if (e) e.walk = { t: 0 }; }
 //   Tap a person to focus on them; double-tap to come back to you. Flicks keep their momentum and the view settles on a person.
 // Mouse: drag orbits and tilts; the wheel (or arrow keys) walks the line; ctrl+wheel zooms; right/middle drag or shift+drag slides.
 // On screen: the rail on the right scrubs along the line (the arrows step one person, hold to run); the left cluster zooms and tilts.
-const CAM_ZMIN = 1.8; // nearest the camera may get to the curtains' plane (z = 0), so their rear and the space behind are never in view
 const TAU = Math.PI * 2, DEFAULT_PITCH = 0.5, PITCH_MIN = 0.06, PITCH_MAX = 1.5, ZOOM_MIN = 0.25, ZOOM_MAX = 2.6;
 let yaw = 0, pitch = DEFAULT_PITCH, zoom = 1;              // where the gestures are steering the camera
 let viewYaw = 0, viewPitch = DEFAULT_PITCH, viewZoom = 1;  // what is drawn: eased towards the above
@@ -1054,7 +1041,6 @@ function frame(now) {
   curtainL.scale.x = curtainR.scale.x = 1 - 0.84 * ease;
   glow.material.opacity = 0.3 * ease;
   spill.intensity = 3 * ease;
-  cube.visible = ease > 0.04; cubeMat.opacity = cubeEdgeMat.opacity = clamp((ease - 0.3) / 0.7, 0, 1); // appears only once the curtains are well apart
   bouncers.forEach((b, i) => { b.scale.y = 1.3 * (1 + Math.sin(t * 1.1 + i * 2.3) * 0.006); }); // slow, steady breathing
 
   // people ease towards their target spots, so the line visibly shuffles forward; legs swing while they move
@@ -1069,7 +1055,7 @@ function frame(now) {
       e.walk.t += dt;
       if (e.walk.t > 0.4) { e.z -= 0.95 * dt; e.x += (0 - e.x) * (1 - Math.exp(-dt * 3)); speed = 0.95; }
       y += clamp((0.6 - e.z) / 0.6, 0, 1) * FLOOR;
-      if (e.z < -1.15 || e.walk.t > 8) { entities.delete(id); continue; }
+      if (e.z < -1.35 || e.walk.t > 8) { entities.delete(id); continue; }
     } else {
       e.x += (e.tx - e.x) * k; e.z += (e.tz - e.z) * k;
       speed = dt > 0 ? Math.hypot(e.x - px, e.z - pz) / dt : 0;
@@ -1180,7 +1166,6 @@ function frame(now) {
   const fz = focusPos * SP, fx = curveX(focusPos);
   const d = 12.5 * viewZoom, cp = Math.cos(viewPitch), sp = Math.sin(viewPitch);
   camera.position.set(fx + Math.sin(viewYaw) * cp * d, 0.9 + sp * d, fz + Math.cos(viewYaw) * cp * d);
-  if (camera.position.z < CAM_ZMIN) camera.position.z = CAM_ZMIN; // you can never go behind the curtains
   // look past the focus so it sits in the lower third; zoomed in on someone, centre them at chest height instead (at the front: look straight at it)
   const close = clamp((1 - viewZoom) / 0.6, 0, 1);
   const ahead = atFront ? 0 : 14 * cp * (1 - 0.75 * close);
