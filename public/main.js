@@ -1128,3 +1128,11 @@ $('rejoin').addEventListener('click', () => {
   $('front').hidden = true;
   resetView();
 });
+
+// rules panel
+const rulesEl = $('rules');
+function setRules(on) { rulesEl.hidden = !on; (on ? $('rulesclose') : $('rulesbtn')).focus(); }
+$('rulesbtn').addEventListener('click', () => setRules(true));
+$('rulesclose').addEventListener('click', () => setRules(false));
+rulesEl.addEventListener('click', (e) => { if (e.target === rulesEl) setRules(false); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !rulesEl.hidden) setRules(false); });

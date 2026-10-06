@@ -79,6 +79,7 @@
 
 <footer id="bar">
   <div id="status">connecting&hellip;</div>
+  <button id="rulesbtn" type="button" class="quiet" aria-haspopup="dialog" aria-controls="rules">Rules</button>
   <button id="tofront" type="button" class="quiet">Front</button>
   <button id="find" type="button">Find me</button>
 </footer>
@@ -93,6 +94,23 @@
       <button id="wsend" type="button">Leave it</button>
       <button id="rejoin" type="button" class="quiet">Join the back of the line</button>
     </div>
+  </div>
+</section>
+
+<section id="rules" role="dialog" aria-modal="true" aria-labelledby="rulesTitle" hidden>
+  <div class="card">
+    <h2 id="rulesTitle">The rules of the line</h2>
+    <ol>
+      <li>Joining puts you at the back.</li>
+      <li>One person goes through the curtains each minute.</li>
+      <li>Nobody knows what's at the front.</li>
+      <li>Close the tab and you lose your place.</li>
+      <li>Reloads and short drops are forgiven. Hiding the tab starts the same clock.</li>
+      <li>One tab holds your place. Open another and it takes over.</li>
+      <li>Reach the front and you may leave one line for whoever is behind you.</li>
+      <li>Then join the back of the line.</li>
+    </ol>
+    <button id="rulesclose" type="button">Back to the line</button>
   </div>
 </section>
 
