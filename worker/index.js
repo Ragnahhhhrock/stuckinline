@@ -26,7 +26,13 @@ export default {
   fetch(request, env) {
     const { pathname } = new URL(request.url);
     if (pathname === '/healthz') return new Response('ok');
-    if (pathname === '/ws') return env.LINE.get(env.LINE.idFromName('global')).fetch(request);
+    if (pathname === '/ws') {
+      // Browsers on HTTP/2 or HTTP/3 send a WebSocket as a CONNECT-style request with no Upgrade header, which a Durable Object will not accept: add it.
+      const headers = new Headers(request.headers);
+      headers.set('Upgrade', 'websocket');
+      headers.set('Connection', 'Upgrade');
+      return env.LINE.get(env.LINE.idFromName('global')).fetch(new Request(request, { headers }));
+    }
     return env.ASSETS.fetch(request);
   },
 };
