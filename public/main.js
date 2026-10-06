@@ -62,16 +62,25 @@ function mergeParts(list, withColor) {
 }
 const Box = (w, h, d) => new THREE.BoxGeometry(w, h, d), Sph = (r, ws = 10, hs = 8) => new THREE.SphereGeometry(r, ws, hs);
 const HY = 1.40; // head centre height
+const limb = (a, b, t, c) => { // a box of thickness t from point a to point b
+  const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), d = B.clone().sub(A);
+  const g = Box(t, d.length(), t).toNonIndexed();
+  g.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize())));
+  g.translate((A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2);
+  g.userData.c = c; return g;
+};
 
 const shirtGeo = mergeParts([
   bp(Box(0.46, 0.56, 0.25), { p: [0, 0.90, 0] }),
   bp(Box(0.12, 0.50, 0.13), { p: [-0.30, 0.89, 0] }), bp(Box(0.12, 0.50, 0.13), { p: [0.30, 0.89, 0] }), // arms
 ]);
 const skinGeo = mergeParts([
-  bp(Sph(0.2, 14, 10), { s: [1, 1.08, 1], p: [0, HY, 0] }), // head
   bp(new THREE.CylinderGeometry(0.065, 0.07, 0.1, 8), { p: [0, 1.2, 0] }), // neck
-  bp(Sph(0.045, 8, 6), { s: [0.5, 1, 0.8], p: [-0.2, 1.39, 0.01] }), bp(Sph(0.045, 8, 6), { s: [0.5, 1, 0.8], p: [0.2, 1.39, 0.01] }), // ears
   bp(Sph(0.062, 8, 6), { p: [-0.30, 0.60, 0] }), bp(Sph(0.062, 8, 6), { p: [0.30, 0.60, 0] }), // hands
+]);
+const headGeo = mergeParts([ // separate from the body so children can have bigger heads
+  bp(Sph(0.2, 14, 10), { s: [1, 1.08, 1], p: [0, HY, 0] }), // head
+  bp(Sph(0.045, 8, 6), { s: [0.5, 1, 0.8], p: [-0.2, 1.39, 0.01] }), bp(Sph(0.045, 8, 6), { s: [0.5, 1, 0.8], p: [0.2, 1.39, 0.01] }), // ears
 ]);
 const legGeo = (x) => mergeParts([
   bp(Box(0.17, 0.62, 0.18), { p: [x, 0.31, 0], c: 0xffffff }), // trousers (tinted per person)
@@ -108,12 +117,48 @@ const mk = (geo, vc, dbl) => {
   const m = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ vertexColors: !!vc, side: dbl ? THREE.DoubleSide : THREE.FrontSide }), MAX_INST);
   m.frustumCulled = false; scene.add(m); return m;
 };
-const shirtM = mk(shirtGeo), skinM = mk(skinGeo), legLM = mk(legGeo(-0.105), true), legRM = mk(legGeo(0.105), true);
+const shirtM = mk(shirtGeo), skinM = mk(skinGeo), headM = mk(headGeo), legLM = mk(legGeo(-0.105), true), legRM = mk(legGeo(0.105), true);
 const faceM = mk(faceGeo, true), noseM = mk(noseGeo), glassM = mk(glassesGeo, true), beardM = mk(beardGeo, false, true), stacheM = mk(stacheGeo);
 const hairMs = hairGeos.map((g) => mk(g, false, true));
-const allMeshes = [shirtM, skinM, legLM, legRM, faceM, noseM, glassM, beardM, stacheM, ...hairMs];
+// walking stick for some senior citizens, hooked in the right hand
+const caneGeo = mergeParts([limb([0.31, 0.64, -0.05], [0.36, 0.0, -0.17], 0.03), limb([0.31, 0.64, -0.05], [0.31, 0.67, 0.04], 0.03)]);
+const caneM = mk(caneGeo);
+
+// ---------- dogs and cats: one body mesh each (white parts take the coat colour), legs swing in diagonal pairs ----------
+const pawLeg = (x, z, hip, t) => bp(Box(t, hip, t), { p: [x, hip / 2, z], c: 0xffffff });
+const DOG_HIP = 0.40, CAT_HIP = 0.21;
+const dogGeo = mergeParts([
+  bp(Box(0.28, 0.28, 0.66), { p: [0, 0.46, 0], c: 0xffffff }),
+  bp(Sph(0.16, 10, 8), { s: [1, 1, 1.1], p: [0, 0.47, -0.27], c: 0xffffff }), // chest
+  limb([0, 0.48, -0.3], [0, 0.69, -0.43], 0.17, 0xffffff), // neck
+  bp(Sph(0.15, 12, 10), { s: [1, 0.95, 1.05], p: [0, 0.75, -0.46], c: 0xffffff }), // head
+  bp(Box(0.12, 0.1, 0.17), { p: [0, 0.70, -0.62], c: 0xf2ebe0 }), // snout
+  bp(Sph(0.032, 8, 6), { p: [0, 0.73, -0.71], c: 0x101010 }), // nose
+  bp(Sph(0.022, 6, 5), { p: [-0.06, 0.80, -0.585], c: 0x101010 }), bp(Sph(0.022, 6, 5), { p: [0.06, 0.80, -0.585], c: 0x101010 }), // eyes
+  bp(Box(0.05, 0.17, 0.1), { r: [0, 0, 0.28], p: [-0.14, 0.71, -0.45], c: 0xb8ae9e }), bp(Box(0.05, 0.17, 0.1), { r: [0, 0, -0.28], p: [0.14, 0.71, -0.45], c: 0xb8ae9e }), // floppy ears
+  limb([0, 0.55, 0.31], [0, 0.80, 0.47], 0.05, 0xffffff), // tail
+  bp(Box(0.05, 0.012, 0.012), { p: [0, 0.665, -0.705], c: 0x5a2a26 }), // mouth
+], true);
+const dogLegA = mergeParts([pawLeg(-0.09, -0.24, DOG_HIP, 0.085), pawLeg(0.09, 0.24, DOG_HIP, 0.085)], true);
+const dogLegB = mergeParts([pawLeg(0.09, -0.24, DOG_HIP, 0.085), pawLeg(-0.09, 0.24, DOG_HIP, 0.085)], true);
+const catGeo = mergeParts([
+  bp(Box(0.18, 0.18, 0.42), { p: [0, 0.28, 0], c: 0xffffff }),
+  bp(Sph(0.11, 12, 10), { s: [1.05, 0.95, 1], p: [0, 0.43, -0.26], c: 0xffffff }), // head
+  bp(new THREE.ConeGeometry(0.045, 0.09, 4), { p: [-0.06, 0.54, -0.25], c: 0xffffff }), bp(new THREE.ConeGeometry(0.045, 0.09, 4), { p: [0.06, 0.54, -0.25], c: 0xffffff }), // ears
+  bp(Sph(0.022, 6, 5), { s: [1, 1, 0.6], p: [-0.045, 0.45, -0.355], c: 0x9ccc4a }), bp(Sph(0.022, 6, 5), { s: [1, 1, 0.6], p: [0.045, 0.45, -0.355], c: 0x9ccc4a }), // eyes
+  bp(Box(0.008, 0.026, 0.008), { p: [-0.045, 0.45, -0.37], c: 0x101010 }), bp(Box(0.008, 0.026, 0.008), { p: [0.045, 0.45, -0.37], c: 0x101010 }), // slit pupils
+  bp(Sph(0.013, 6, 5), { p: [0, 0.415, -0.365], c: 0xd08888 }), // nose
+  bp(Box(0.11, 0.004, 0.004), { r: [0, 0, 0.12], p: [-0.07, 0.405, -0.35], c: 0xeeeeee }), bp(Box(0.11, 0.004, 0.004), { r: [0, 0, -0.12], p: [0.07, 0.405, -0.35], c: 0xeeeeee }), // whiskers
+  limb([0, 0.31, 0.2], [0, 0.42, 0.33], 0.04, 0xffffff), limb([0, 0.42, 0.33], [0, 0.6, 0.31], 0.04, 0xffffff), // tail held high
+], true);
+const catLegA = mergeParts([pawLeg(-0.06, -0.15, CAT_HIP, 0.055), pawLeg(0.06, 0.15, CAT_HIP, 0.055)], true);
+const catLegB = mergeParts([pawLeg(0.06, -0.15, CAT_HIP, 0.055), pawLeg(-0.06, 0.15, CAT_HIP, 0.055)], true);
+const collar = (r, t, y, z, tilt) => bp(new THREE.TorusGeometry(r, t, 6, 14), { r: [tilt, 0, 0], p: [0, y, z] });
+const dogM = mk(dogGeo, true), dogLAM = mk(dogLegA, true), dogLBM = mk(dogLegB, true), dogCollarM = mk(collar(0.095, 0.022, 0.59, -0.365, 0.98));
+const catM = mk(catGeo, true), catLAM = mk(catLegA, true), catLBM = mk(catLegB, true), catCollarM = mk(collar(0.07, 0.016, 0.35, -0.22, 1.25));
+const allMeshes = [shirtM, skinM, headM, legLM, legRM, faceM, noseM, glassM, beardM, stacheM, caneM, ...hairMs, dogM, dogLAM, dogLBM, dogCollarM, catM, catLAM, catLBM, catCollarM];
 const hiN = [0, 0, 0, 0, 0];
-const M = new THREE.Matrix4(), T = new THREE.Matrix4(), T2 = new THREE.Matrix4(), S = new THREE.Matrix4(), Q = new THREE.Matrix4(), F = new THREE.Matrix4();
+const H = new THREE.Matrix4(), M = new THREE.Matrix4(), T = new THREE.Matrix4(), T2 = new THREE.Matrix4(), S = new THREE.Matrix4(), Q = new THREE.Matrix4(), F = new THREE.Matrix4();
 const YOU_COLOR = new THREE.Color(0xffcf5c);
 
 // marker for you
@@ -166,13 +211,6 @@ spill.position.set(0, 1.4, 0.9);
 stage.add(spill);
 // ---------- bouncers: two burly doormen in tuxedos flank the curtains, facing the line ----------
 // Each is one vertex-coloured mesh built facing -z (like the crowd), then turned round to face the queue.
-const limb = (a, b, t, c) => { // a box of thickness t from point a to point b
-  const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), d = B.clone().sub(A);
-  const g = Box(t, d.length(), t).toNonIndexed();
-  g.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize())));
-  g.translate((A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2);
-  g.userData.c = c; return g;
-};
 function makeBouncer(skinHex, hairHex, beard) {
   const JK = 0x101015, LAP = 0x24242e, WH = 0xf2f0ea, SK = skinHex, BH = 1.47; // jacket, satin lapel, shirt, skin, head height
   const parts = [
@@ -436,20 +474,50 @@ function streetUpdate(cx, cz, t) {
 const SKIN = ['#f3d2b3', '#e8bb94', '#d19a6e', '#b57a52', '#8a5636', '#5b3a26'].map((c) => new THREE.Color(c));
 const HAIR = ['#16110d', '#16110d', '#2e1d12', '#2e1d12', '#4a2f1a', '#4a2f1a', '#6e3a1c', '#b9904e', '#a9481f', '#8f8f8f', '#d9d5cd'].map((c) => new THREE.Color(c));
 const PANTS = ['#26324a', '#2b2b33', '#6b5b43', '#3e5a7a', '#4a5240', '#5a3d2e', '#1f1f24', '#7a7466'].map((c) => new THREE.Color(c));
-function makeTraits(seed) { // everything about a person's look comes from their seed
+const GREY = ['#8f8f8f', '#b5b2ab', '#d9d5cd', '#ecebe6'].map((c) => new THREE.Color(c));
+const DOG_COATS = ['#c9a06a', '#2a2420', '#f2ead8', '#8a5a32', '#d8b07a', '#6b6b6b', '#a0522d', '#e6d2a8'].map((c) => new THREE.Color(c));
+const CAT_COATS = ['#2a2624', '#e8892e', '#9a9a9a', '#f0ece4', '#6e5a46', '#c8a878', '#4a4440'].map((c) => new THREE.Color(c));
+const COLLARS = ['#c0392b', '#2e6fd8', '#2f9e6a', '#7a3fb0', '#d8a020'].map((c) => new THREE.Color(c));
+const CANE = new THREE.Color('#5a3b22');
+// Everyone's kind comes from their seed, so each visit (a new place at the back) draws a new one at random.
+const KINDS = [['adult', 0.55], ['child', 0.15], ['senior', 0.15], ['dog', 0.08], ['cat', 0.07]];
+const KIND_NAME = { adult: 'a grown-up', child: 'a child', senior: 'a senior citizen', dog: 'a dog', cat: 'a cat' };
+function kindOf(seed) {
+  let x = hash01(seed + 991.7);
+  for (const [k, p] of KINDS) { if (x < p) return k; x -= p; }
+  return 'adult';
+}
+function makeTraits(seed) { // everything about a person's (or pet's) look comes from their seed
   const r = (k) => hash01(seed + k * 7.31);
-  const hairStyle = Math.floor(r(1) * 6); // short, long, bun, spiky, afro, bald
-  const dyed = r(2) < 0.06;
-  const hair = dyed ? new THREE.Color(['#2f5fc4', '#c43d86', '#2f9e6a'][Math.floor(r(3) * 3)]) : HAIR[Math.floor(r(4) * HAIR.length)];
+  const kind = kindOf(seed);
+  if (kind === 'dog' || kind === 'cat') {
+    const dog = kind === 'dog', sz = dog ? 0.8 + 0.5 * r(1) : 0.9 + 0.2 * r(1), coats = dog ? DOG_COATS : CAT_COATS;
+    return { kind, animal: true, sz, coat: coats[Math.floor(r(2) * coats.length)], collar: COLLARS[Math.floor(r(3) * COLLARS.length)], h: sz, lh: (dog ? 1.0 : 0.72) * sz };
+  }
+  const child = kind === 'child', senior = kind === 'senior';
+  let hairStyle = Math.floor(r(1) * 6); // short, long, bun, spiky, afro, bald
+  if (child && hairStyle === 5) hairStyle = 0;
+  if (senior && r(21) < 0.3) hairStyle = 5;
+  const dyed = !senior && r(2) < 0.06;
+  const hair = dyed ? new THREE.Color(['#2f5fc4', '#c43d86', '#2f9e6a'][Math.floor(r(3) * 3)])
+    : senior ? GREY[Math.floor(r(4) * GREY.length)] : HAIR[Math.floor(r(4) * HAIR.length)];
   const skin = SKIN[Math.floor(r(5) * SKIN.length)];
   const f = r(6);
-  return {
-    hairStyle, hair, skin, noseC: skin.clone().multiplyScalar(0.93),
-    shirt: new THREE.Color().setHSL(r(8), 0.3 + r(9) * 0.3, 0.38 + r(10) * 0.2), pants: PANTS[Math.floor(r(11) * PANTS.length)],
-    glasses: r(12) < 0.22, facial: hairStyle === 1 || hairStyle === 2 ? 0 : f < 0.14 ? 1 : f < 0.28 ? 2 : 0, // beard / moustache
-    fcol: hairStyle === 5 ? new THREE.Color('#3a2616') : hair,
-    w: 0.94 + 0.14 * r(13), h: 0.92 + 0.16 * r(14), fx: 0.9 + 0.22 * r(15), fy: 0.96 + 0.1 * r(16), ns: 0.8 + 0.6 * r(17), phone: r(18) < 0.2, chatty: r(19) < 0.16,
+  const t = {
+    kind, hairStyle, hair, skin, noseC: skin.clone().multiplyScalar(0.93),
+    shirt: new THREE.Color().setHSL(r(8), child ? 0.55 + r(9) * 0.3 : senior ? 0.12 + r(9) * 0.2 : 0.3 + r(9) * 0.3, 0.38 + r(10) * 0.2),
+    pants: PANTS[Math.floor(r(11) * PANTS.length)],
+    glasses: r(12) < (child ? 0.1 : senior ? 0.6 : 0.22),
+    facial: child || hairStyle === 1 || hairStyle === 2 ? 0 : f < 0.14 ? 1 : f < 0.28 ? 2 : 0, // beard / moustache
+    fcol: hairStyle === 5 ? (senior ? GREY[1] : new THREE.Color('#3a2616')) : hair,
+    w: child ? 0.64 + 0.07 * r(13) : 0.94 + 0.14 * r(13),
+    h: child ? 0.58 + 0.12 * r(14) : senior ? 0.9 + 0.1 * r(14) : 0.92 + 0.16 * r(14),
+    fx: 0.9 + 0.22 * r(15), fy: 0.96 + 0.1 * r(16), ns: child ? 0.7 : 0.8 + 0.6 * r(17),
+    hd: child ? 1.32 : 1, phone: !child && r(18) < 0.2, chatty: r(19) < 0.16, // head scale: children have big heads for their size
+    stoop: senior ? 0.06 + 0.07 * r(22) : 0, cane: senior && r(23) < 0.45, // seniors lean forward a little; some have a stick
   };
+  t.lh = 1.95 * t.h + (child ? 0.1 : 0); // label height above the ground
+  return t;
 }
 
 const entities = new Map(); // id -> {x,z,tx,tz,seed,pos,tr,walk?}
@@ -475,6 +543,9 @@ function applyState(s) {
   $('pos').textContent = s.pos ? `#${s.pos.toLocaleString()}` : '#–';
   $('tally').textContent = `${s.total.toLocaleString()} in line`;
   $('tally').title = `${Math.max(0, s.total - (s.pos ? 1 : 0)).toLocaleString()} others`;
+  const me = s.you != null ? entities.get(s.you) : null;
+  const who = me ? `You are ${KIND_NAME[me.tr.kind]}` : '';
+  if ($('who').textContent !== who) $('who').textContent = who;
   stage.visible = s.start <= 12 || !!(s.head && s.head.length);
 }
 
@@ -600,7 +671,7 @@ function frame(now) {
   bouncers.forEach((b, i) => { b.scale.y = 1.3 * (1 + Math.sin(t * 1.1 + i * 2.3) * 0.006); }); // slow, steady breathing
 
   // people ease towards their target spots, so the line visibly shuffles forward; legs swing while they move
-  let n = 0, gi = 0, bi = 0, si = 0;
+  let n = 0, hu = 0, gi = 0, bi = 0, si = 0, ki = 0, di = 0, ci = 0;
   hiN.fill(0);
   let you = null;
   for (const [id, e] of entities) {
@@ -629,34 +700,54 @@ function frame(now) {
       if (tr.phone) { const c = (t + hash01(sd + 2) * 16) % 16; lean = -0.3 * clamp(Math.min(c, 5 - c) * 1.5, 0, 1) * idle; }
       else if (tr.chatty) { const c = (t + hash01(sd + 3) * 23) % 23; yawA += (hash01(sd + 4) < 0.5 ? 1 : -1) * 1.5 * clamp(Math.min(c, 4 - c) * 1.2, 0, 1) * idle; }
     }
-    dummy.rotation.set(lean, yawA, roll);
-    dummy.scale.set(tr.w, tr.h, tr.w);
-    dummy.updateMatrix(); M.copy(dummy.matrix);
+    dummy.rotation.set(lean - (tr.stoop || 0), yawA, roll); // seniors lean forward a little
     const isYou = id === state.you;
-    shirtM.setMatrixAt(n, M); shirtM.setColorAt(n, isYou ? YOU_COLOR : tr.shirt);
-    skinM.setMatrixAt(n, M); skinM.setColorAt(n, tr.skin);
-    T.makeTranslation(0, 0.62, 0); T2.makeTranslation(0, -0.62, 0); // legs swing from the hip
-    Q.makeRotationX(sw); F.multiplyMatrices(M, T).multiply(Q).multiply(T2); legLM.setMatrixAt(n, F); legLM.setColorAt(n, tr.pants);
-    Q.makeRotationX(-sw); F.multiplyMatrices(M, T).multiply(Q).multiply(T2); legRM.setMatrixAt(n, F); legRM.setColorAt(n, tr.pants);
-    T.makeTranslation(0, HY, 0); T2.makeTranslation(0, -HY, 0); S.makeScale(tr.fx, tr.fy, 1); // face proportions: scaled about the head
-    F.multiplyMatrices(M, T).multiply(S).multiply(T2);
-    faceM.setMatrixAt(n, F);
-    if (tr.glasses) glassM.setMatrixAt(gi++, F);
-    T.makeTranslation(0, 1.375, -0.19); S.makeScale(tr.ns, tr.ns, tr.ns * 1.1);
-    F.multiplyMatrices(M, T).multiply(S); noseM.setMatrixAt(n, F); noseM.setColorAt(n, tr.noseC);
-    if (tr.facial === 1) { beardM.setMatrixAt(bi, M); beardM.setColorAt(bi, tr.fcol); bi++; }
-    else if (tr.facial === 2) { T.makeTranslation(0, 1.345, -0.2); S.makeScale(tr.fx, 1, 1); F.multiplyMatrices(M, T).multiply(S); stacheM.setMatrixAt(si, F); stacheM.setColorAt(si, tr.fcol); si++; }
-    if (tr.hairStyle < 5) { const hm = hairMs[tr.hairStyle], hi = hiN[tr.hairStyle]++; hm.setMatrixAt(hi, M); hm.setColorAt(hi, tr.hair); }
+    if (tr.animal) {
+      dummy.scale.setScalar(tr.sz);
+      dummy.updateMatrix(); M.copy(dummy.matrix);
+      const dog = tr.kind === 'dog', i = dog ? di++ : ci++, hip = dog ? DOG_HIP : CAT_HIP, sw2 = sw * 1.3;
+      const [bm, la, lb, cm] = dog ? [dogM, dogLAM, dogLBM, dogCollarM] : [catM, catLAM, catLBM, catCollarM];
+      bm.setMatrixAt(i, M); bm.setColorAt(i, tr.coat);
+      cm.setMatrixAt(i, M); cm.setColorAt(i, isYou ? YOU_COLOR : tr.collar); // your collar is gold
+      T.makeTranslation(0, hip, 0); T2.makeTranslation(0, -hip, 0);
+      Q.makeRotationX(sw2); F.multiplyMatrices(M, T).multiply(Q).multiply(T2); la.setMatrixAt(i, F); la.setColorAt(i, tr.coat);
+      Q.makeRotationX(-sw2); F.multiplyMatrices(M, T).multiply(Q).multiply(T2); lb.setMatrixAt(i, F); lb.setColorAt(i, tr.coat);
+    } else {
+      dummy.scale.set(tr.w, tr.h, tr.w);
+      dummy.updateMatrix(); M.copy(dummy.matrix);
+      const hn = hu++;
+      shirtM.setMatrixAt(hn, M); shirtM.setColorAt(hn, isYou ? YOU_COLOR : tr.shirt);
+      skinM.setMatrixAt(hn, M); skinM.setColorAt(hn, tr.skin);
+      T.makeTranslation(0, 0.62, 0); T2.makeTranslation(0, -0.62, 0); // legs swing from the hip
+      Q.makeRotationX(sw); F.multiplyMatrices(M, T).multiply(Q).multiply(T2); legLM.setMatrixAt(hn, F); legLM.setColorAt(hn, tr.pants);
+      Q.makeRotationX(-sw); F.multiplyMatrices(M, T).multiply(Q).multiply(T2); legRM.setMatrixAt(hn, F); legRM.setColorAt(hn, tr.pants);
+      // the head and everything on it scales about the head centre (children's heads are bigger for their size)
+      T.makeTranslation(0, HY, 0); T2.makeTranslation(0, -HY, 0); S.makeScale(tr.hd, tr.hd, tr.hd);
+      H.multiplyMatrices(M, T).multiply(S).multiply(T2);
+      headM.setMatrixAt(hn, H); headM.setColorAt(hn, tr.skin);
+      S.makeScale(tr.fx, tr.fy, 1); // face proportions
+      F.multiplyMatrices(H, T).multiply(S).multiply(T2);
+      faceM.setMatrixAt(hn, F);
+      if (tr.glasses) glassM.setMatrixAt(gi++, F);
+      T.makeTranslation(0, 1.375, -0.19); S.makeScale(tr.ns, tr.ns, tr.ns * 1.1);
+      F.multiplyMatrices(H, T).multiply(S); noseM.setMatrixAt(hn, F); noseM.setColorAt(hn, tr.noseC);
+      if (tr.facial === 1) { beardM.setMatrixAt(bi, H); beardM.setColorAt(bi, tr.fcol); bi++; }
+      else if (tr.facial === 2) { T.makeTranslation(0, 1.345, -0.2); S.makeScale(tr.fx, 1, 1); F.multiplyMatrices(H, T).multiply(S); stacheM.setMatrixAt(si, F); stacheM.setColorAt(si, tr.fcol); si++; }
+      if (tr.hairStyle < 5) { const hm = hairMs[tr.hairStyle], hi = hiN[tr.hairStyle]++; hm.setMatrixAt(hi, H); hm.setColorAt(hi, tr.hair); }
+      if (tr.cane) { caneM.setMatrixAt(ki, M); caneM.setColorAt(ki, CANE); ki++; }
+    }
     if (isYou) you = e;
     lbE[n] = e; lbY[n] = y;
     n++;
   }
-  shirtM.count = skinM.count = legLM.count = legRM.count = faceM.count = noseM.count = n;
-  glassM.count = gi; beardM.count = bi; stacheM.count = si;
+  shirtM.count = skinM.count = headM.count = legLM.count = legRM.count = faceM.count = noseM.count = hu;
+  glassM.count = gi; beardM.count = bi; stacheM.count = si; caneM.count = ki;
+  dogM.count = dogLAM.count = dogLBM.count = dogCollarM.count = di;
+  catM.count = catLAM.count = catLBM.count = catCollarM.count = ci;
   hairMs.forEach((hm, i) => { hm.count = hiN[i]; });
   for (const m of allMeshes) { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
   marker.visible = ring.visible = !!you;
-  if (you) { marker.position.set(you.x, (you.z < 0.6 ? FLOOR : 0) + 2.05 * you.tr.h + Math.sin(t * 3) * 0.05, you.z); ring.position.set(you.x, 0.02, you.z); }
+  if (you) { marker.position.set(you.x, (you.z < 0.6 ? FLOOR : 0) + you.tr.lh + 0.1 + Math.sin(t * 3) * 0.05, you.z); ring.position.set(you.x, 0.02, you.z); }
 
   // camera orbits the focus point (you, or whoever you slid to); "Front" flies it to the stage from anywhere in the line
   if (!atFront) { const [lo, hi] = panBounds(); panOffset = clamp(panOffset, lo, hi); }
@@ -679,7 +770,7 @@ function frame(now) {
     const e = lbE[i];
     if (e.walk || !e.pos) continue;
     const isYou = e === you;
-    v3.set(e.x, lbY[i] + (isYou ? 2.5 : 1.95) * e.tr.h, e.z);
+    v3.set(e.x, lbY[i] + e.tr.lh + (isYou ? 0.55 : 0), e.z);
     const dist = camera.position.distanceTo(v3);
     const op = isYou ? 1 : clamp(1.15 - (dist - 12) / 20, 0, 1);
     if (op < 0.05 || (v3.x - camera.position.x) * fwd.x + (v3.y - camera.position.y) * fwd.y + (v3.z - camera.position.z) * fwd.z < 0.3) continue;

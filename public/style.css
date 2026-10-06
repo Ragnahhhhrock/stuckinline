@@ -22,8 +22,9 @@ body { background: #141623; }
 #hud { position: fixed; top: calc(12px + var(--safe-t)); left: 0; right: 0; text-align: center; pointer-events: none; text-shadow: 0 1px 12px #000a; }
 #pos { font-size: clamp(40px, 12vw, 64px); font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.05; }
 #tally { color: var(--quiet); font-size: 15px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+#who { color: var(--accent); font-size: 13px; margin-top: 2px; opacity: 0.9; }
 
-#hint { position: fixed; top: calc(118px + var(--safe-t)); left: 24px; right: 24px; text-align: center; font-size: 13px; color: var(--quiet); opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
+#hint { position: fixed; top: calc(136px + var(--safe-t)); left: 24px; right: 24px; text-align: center; font-size: 13px; color: var(--quiet); opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
 #hint.on { opacity: 0.85; }
 
 #whisper { position: fixed; left: 24px; right: 24px; bottom: calc(84px + var(--safe-b)); text-align: center; font-style: italic;
