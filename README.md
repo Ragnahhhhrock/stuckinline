@@ -1,4 +1,4 @@
-# The Line (MVP)
+# Stuck in Line (MVP)
 
 A browser game about waiting. One global queue, slowly moving; nobody knows what is at the front.
 
